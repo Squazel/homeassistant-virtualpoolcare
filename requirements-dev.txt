@@ -1,0 +1,5 @@
+# Development and testing requirements
+pytest>=7.0.0
+pytest-asyncio>=0.21.0
+pytest-cov>=4.0.0
+requests>=2.25.1

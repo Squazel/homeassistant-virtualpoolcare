@@ -1,0 +1,3 @@
+sensor:
+  - platform: virtualpoolcare
+    update_interval_hours: 4   # optional; defaults to 6

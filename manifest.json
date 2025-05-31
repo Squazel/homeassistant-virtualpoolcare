@@ -1,0 +1,10 @@
+{
+  "domain": "virtualpoolcare",
+  "name": "VirtualPoolCare Integration",
+  "version": "1.0.0",
+  "documentation": "https://github.com/YourUsername/homeassistant-virtualpoolcare/blob/main/README.md",
+  "requirements": [],
+  "dependencies": [],
+  "codeowners": ["@YourUsername"],
+  "iot_class": "cloud_poll"
+}
