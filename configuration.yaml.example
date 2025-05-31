@@ -1,3 +1,5 @@
 sensor:
   - platform: virtualpoolcare
-    update_interval_hours: 4   # optional; defaults to 6
+    email: "your_email@example.com"       # Required: Your VirtualPoolCare login email
+    password: "your_password"             # Required: Your VirtualPoolCare password
+    update_interval_hours: 4              # Optional: How often to fetch data (default: 6 hours)

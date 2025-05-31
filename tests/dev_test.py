@@ -32,8 +32,12 @@ def simulate_data_fetch():
     print("Simulating multiple data fetches:")
     print("-" * 40)
     
+    # Use test credentials
+    test_email = "test@example.com"
+    test_password = "test_password"
+    
     for i in range(5):
-        data = fetch_virtualpoolcare_data()
+        data = fetch_virtualpoolcare_data(test_email, test_password)
         print(f"Fetch {i+1}: {json.dumps(data, indent=2)}")
         print()
 
@@ -47,12 +51,12 @@ def test_sensor_behavior():
     # Test with normal data
     mock_coordinator = Mock()
     mock_coordinator.data = {
-        "water_temperature": 78.5,
-        "pH_level": 7.2,
-        "chlorine_ppm": 1.5
+        "temperature": 78.5,
+        "ph": 7.2,
+        "orp": 650
     }
     
-    sensor = VirtualPoolCareSensor(mock_coordinator, "water_temperature")
+    sensor = VirtualPoolCareSensor(mock_coordinator, "temperature")
     print(f"Normal data - Temperature sensor: {sensor.state}")
     
     # Test with missing key

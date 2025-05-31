@@ -28,20 +28,32 @@ cd /config/custom_components
 git clone https://github.com/YourUsername/homeassistant-virtualpoolcare.git
 ```
 **2.** Restart Home Assistant.
-**3.** (Optional) If using YAML config, add to configuration.yaml:
+
+## Configuration
+
+Add the following to your `configuration.yaml`:
 
 ```yaml
 sensor:
   - platform: virtualpoolcare
-    update_interval_hours: 4    # optional; defaults to 6
+    email: "your_email@example.com"       # Required: Your VirtualPoolCare login email
+    password: "your_password"             # Required: Your VirtualPoolCare password
+    update_interval_hours: 4              # Optional: How often to fetch data (default: 6 hours)
 ```
-**4.** Restart HA again.
+
+**3.** Restart Home Assistant again.
 
 ## Configuration Options
 
-| Option | Type | Default | Description |
-|--------|------|---------|-------------|
-| update_interval_hours | number | 6 | How often (in hours) to fetch data from VirtualPoolCare |
+| Option | Type | Default | Required | Description |
+|--------|------|---------|----------|-------------|
+| email | string | - | **Yes** | Your VirtualPoolCare.io login email |
+| password | string | - | **Yes** | Your VirtualPoolCare.io login password |
+| update_interval_hours | number | 6 | No | How often (in hours) to fetch data from VirtualPoolCare |
+
+## Security Note
+
+⚠️ **Important**: Your VirtualPoolCare credentials will be stored in your `configuration.yaml` file. Make sure this file is properly secured and not accessible to unauthorized users.
 
 ## Changelog & Releases
 
