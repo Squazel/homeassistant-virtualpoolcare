@@ -1,11 +1,11 @@
 {
   "domain": "virtualpoolcare",
   "name": "VirtualPoolCare Integration",
-  "version": "1.0.0",
+  "codeowners": ["@Squazel"],
+  "dependencies": [],
   "documentation": "https://github.com/Squazel/homeassistant-virtualpoolcare/blob/main/README.md",
+  "iot_class": "cloud_polling",
   "issue_tracker": "https://github.com/Squazel/homeassistant-virtualpoolcare/issues",
   "requirements": ["requests>=2.25.1", "boto3>=1.26.0"],
-  "dependencies": [],
-  "codeowners": ["@Squazel"],
-  "iot_class": "cloud_polling"
+  "version": "1.0.0"
 }
