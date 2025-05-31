@@ -1,30 +1,39 @@
 """Standalone test runner for VirtualPoolCare integration."""
 import sys
 import os
-from unittest.mock import MagicMock
 
-# Add parent directory to path so we can import our modules
+# Add parent directory to path so we can import core module
 parent_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, parent_dir)
 
-# Mock Home Assistant modules
-mock_ha_modules = {
-    'homeassistant': MagicMock(),
-    'homeassistant.components': MagicMock(),
-    'homeassistant.components.sensor': MagicMock(),
-    'homeassistant.core': MagicMock(),
-    'homeassistant.helpers': MagicMock(),
-    'homeassistant.helpers.update_coordinator': MagicMock(),
-    'homeassistant.helpers.entity_platform': MagicMock(),
-    'homeassistant.helpers.typing': MagicMock(),
-}
+from virtualpoolcare_core import (
+    MockVirtualPoolCareAPI, 
+    VirtualPoolCareSensorData,
+    DOMAIN, 
+    SCAN_INTERVAL_HOURS
+)
 
-for module_name, mock_module in mock_ha_modules.items():
-    sys.modules[module_name] = mock_module
-
-# Import and test our modules
-from sensor import fetch_virtualpoolcare_data, VirtualPoolCareSensor
-from const import DOMAIN, SCAN_INTERVAL_HOURS
+class MockSensor:
+    """Simple sensor class for testing without Home Assistant dependencies."""
+    
+    def __init__(self, data: dict, key: str):
+        self.data = data
+        self._key = key
+        
+        device_serial = data.get("blue_device_serial", "unknown")
+        self._attr_unique_id = VirtualPoolCareSensorData.create_entity_id(device_serial, key)
+        self._attr_name = VirtualPoolCareSensorData.create_entity_name(device_serial, key)
+        self._device_serial = device_serial
+    
+    @property
+    def state(self):
+        """Return current state."""
+        return self.data.get(self._key)
+    
+    @property
+    def native_unit_of_measurement(self):
+        """Return unit of measurement."""
+        return VirtualPoolCareSensorData.get_unit_of_measurement(self._key)
 
 def test_basic_functionality():
     """Test basic functionality without Home Assistant."""
@@ -35,21 +44,21 @@ def test_basic_functionality():
     print(f"Domain: {DOMAIN}")
     print(f"Scan Interval: {SCAN_INTERVAL_HOURS} hours")
     
-    # Test data fetching
+    # Test data fetching with mock API
     print("\nTesting data fetch...")
-    data = fetch_virtualpoolcare_data()
+    api = MockVirtualPoolCareAPI("test@example.com", "test_password")
+    data = api.fetch_data()
     print(f"Fetched data: {data}")
     
-    # Test sensor creation (with mocked coordinator)
+    # Test sensor creation
     print("\nTesting sensor creation...")
-    from unittest.mock import Mock
+    sensor_keys = VirtualPoolCareSensorData.get_sensor_keys(data)
     
-    mock_coordinator = Mock()
-    mock_coordinator.data = data
-    
-    for key in data.keys():
-        sensor = VirtualPoolCareSensor(mock_coordinator, key)
+    for key in sensor_keys:
+        sensor = MockSensor(data, key)
         print(f"Created sensor: {sensor._attr_name} = {sensor.state}")
+        print(f"  - Unique ID: {sensor._attr_unique_id}")
+        print(f"  - Unit: {sensor.native_unit_of_measurement}")
     
     print("\n✅ All basic tests passed!")
 

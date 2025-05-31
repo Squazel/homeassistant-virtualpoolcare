@@ -2,21 +2,34 @@
 
 This directory contains testing utilities and test cases for the VirtualPoolCare Home Assistant integration. You can run these tests locally without needing a full Home Assistant installation.
 
-## Test Structure
+## Testing Approaches
+
+The integration supports **two levels of testing**:
+
+1. **Mock Testing** - Fast tests using fake data (no credentials needed)
+2. **Real API Testing** - Tests against actual VirtualPoolCare API (automatic if credentials provided)
+
+## Architecture Overview
+
+The integration uses a clean separation of concerns:
 
 ```
-tests/
-├── README.md           # This file
-├── __init__.py         # Test package marker
-├── test_sensor.py      # Unit tests using pytest
-├── test_runner.py      # Standalone test runner
-└── dev_test.py         # Development/debugging utilities
+homeassistant-virtualpoolcare/
+├── virtualpoolcare_core.py    # Core API logic (no HA dependencies)
+├── sensor.py                  # Home Assistant integration wrapper
+├── const.py                   # Configuration constants
+├── .creds                     # Credentials file (optional, not committed)
+└── tests/
+    ├── test_runner.py         # Mock testing only
+    ├── dev_test.py           # Both mock AND real API testing
+    └── test_sensor.py        # Unit tests using pytest
 ```
 
 ## Prerequisites
 
 1. **Python 3.9+** installed on your system
 2. **Git** for cloning the repository
+3. **VirtualPoolCare account** (optional, for real API testing)
 
 ## Setup Development Environment
 
@@ -30,18 +43,34 @@ cd homeassistant-virtualpoolcare
 ### 2. Install Development Dependencies
 
 ```bash
-# Install development requirements
+# Install development requirements (from project root)
 pip install -r requirements-dev.txt
 ```
 
-This will install:
-- `pytest` - Testing framework
-- `pytest-asyncio` - Async testing support
-- `pytest-cov` - Code coverage
-- `requests` - HTTP library
-- `boto3` - AWS SDK (for API authentication)
+### 3. (Optional) Setup Credentials for Real API Testing
 
-### 3. Verify Installation
+You can provide VirtualPoolCare credentials in two ways:
+
+#### Option A: Environment Variables (Recommended for CI)
+```bash
+# Windows
+set VIRTUALPOOLCARE_EMAIL=your_email@example.com
+set VIRTUALPOOLCARE_PASSWORD=your_password
+
+# Linux/Mac
+export VIRTUALPOOLCARE_EMAIL=your_email@example.com
+export VIRTUALPOOLCARE_PASSWORD=your_password
+```
+
+#### Option B: Credentials File (Recommended for Local Development)
+Create a file called `.creds` in the project root:
+```
+your_email@example.com
+your_password
+```
+**Note:** This file is automatically ignored by git and won't be committed.
+
+### 4. Verify Installation
 
 ```bash
 # Quick verification that modules can be imported
@@ -50,197 +79,156 @@ python -c "import boto3, requests, pytest; print('✅ All dependencies installed
 
 ## Running Tests
 
-### Option 1: Quick Test Runner (Recommended for beginners)
+**Important:** All commands should be run from the project root directory, not the tests directory.
 
-Run the standalone test runner that provides a simple overview:
+### Option 1: Mock Testing Only (Fastest)
 
-```bash
-cd tests
-python test_runner.py
-```
-
-**Expected Output:**
-```
-Testing VirtualPoolCare Integration Components
-==================================================
-Domain: virtualpoolcare
-Scan Interval: 6 hours
-
-Testing data fetch...
-Fetched data: {'temperature': 23.4, 'ph': 7.32, 'orp': 678, 'salinity': 3.1}
-
-Testing sensor creation...
-Created sensor: virtualpoolcare unknown temperature = 23.4
-Created sensor: virtualpoolcare unknown ph = 7.32
-Created sensor: virtualpoolcare unknown orp = 678
-Created sensor: virtualpoolcare unknown salinity = 3.1
-
-✅ All basic tests passed!
-```
-
-### Option 2: Development Test Suite
-
-Run the development test suite for more detailed debugging:
+For quick validation without credentials:
 
 ```bash
-cd tests
-python dev_test.py
+# From project root
+python tests/test_runner.py
 ```
 
-**Expected Output:**
+### Option 2: Comprehensive Testing (Mock + Real API)
+
+Automatically tests both mock and real APIs (if credentials are provided):
+
+```bash
+# From project root
+python tests/dev_test.py
+```
+
+**With Credentials:**
 ```
 VirtualPoolCare Integration - Development Testing
 =======================================================
-Simulating multiple data fetches:
-----------------------------------------
-Fetch 1: {
+
+Testing MOCK VirtualPoolCare API:
+===================================
+MockVirtualPoolCareAPI initialized for: test@example.com
+Mock data fetch:
+{
   "temperature": 24.1,
   "ph": 7.25,
   "orp": 685,
-  "salinity": 3.2
+  "salinity": 3.2,
+  "blue_device_serial": "0A2B3C4D"
 }
 
-[... more fetch results ...]
+Testing sensor creation with MOCK data:
+---------------------------------------------
+  virtualpoolcare 0A2B3C4D temperature = 24.1 °C
+  virtualpoolcare 0A2B3C4D ph = 7.25
+  virtualpoolcare 0A2B3C4D orp = 685 mV
+  virtualpoolcare 0A2B3C4D salinity = 3.2 g/L
 
-Testing sensor behavior:
-------------------------------
-Normal data - Temperature sensor: 78.5
-Missing key - Sensor state: None
-No data - Temperature sensor: None
+Testing REAL VirtualPoolCare API:
+==================================
+✅ Using credentials from .creds file (email: your_email@example.com)
+
+🔄 Testing real API with email: your_email@example.com
+
+Testing complete fetch_data() method...
+✅ Complete API test successful! Found 8 data points
+
+Comparing REAL vs MOCK data:
+==============================
+✅ Real and mock sensor keys match!
 
 ✅ Development testing complete!
+
+🎉 Both mock and real API tests completed successfully!
+```
+
+**Without Credentials:**
+```
+VirtualPoolCare Integration - Development Testing
+=======================================================
+
+Testing MOCK VirtualPoolCare API:
+===================================
+[... mock test output ...]
+
+Testing REAL VirtualPoolCare API:
+==================================
+⚠️  No credentials found - skipping real API test
+
+✅ Development testing complete!
+
+============================================================
+🔧 REAL API TESTING SETUP
+============================================================
+To test against the actual VirtualPoolCare API, provide credentials:
+
+📋 Option 1: Environment Variables (Recommended for CI)
+   Windows:
+     set VIRTUALPOOLCARE_EMAIL=your_email@example.com
+     set VIRTUALPOOLCARE_PASSWORD=your_password
+   Linux/Mac:
+     export VIRTUALPOOLCARE_EMAIL=your_email@example.com
+     export VIRTUALPOOLCARE_PASSWORD=your_password
+
+📁 Option 2: Credentials File (Recommended for Local Development)
+   Create a file called '.creds' in the project root containing:
+     your_email@example.com
+     your_password
+   (Note: .creds is automatically ignored by git)
+
+🔒 Security:
+   • Credentials are never stored in code or committed to git
+   • Environment variables are the most secure option
+   • Real API testing makes actual calls to VirtualPoolCare.io
+============================================================
 ```
 
 ### Option 3: Unit Tests with pytest
 
-Run the full unit test suite:
+Run the full automated test suite:
 
 ```bash
-# Run all tests
+# Run all tests (from project root)
 python -m pytest tests/ -v
-
-# Run with coverage report
-python -m pytest tests/ -v --cov=sensor --cov-report=html
-
-# Run specific test file
-python -m pytest tests/test_sensor.py -v
 ```
 
-**Expected Output:**
-```
-================================ test session starts ================================
-platform win32 -- Python 3.11.0, pytest-7.2.0, pluggy-1.0.0 -- python.exe
-cachedir: .pytest_cache
-rootdir: C:\Users\micha\Dev\HomeAssistant\homeassistant-virtualpoolcare
-collected 6 items
+## Real API Testing Benefits
 
-tests/test_sensor.py::TestFetchVirtualPoolCareData::test_fetch_returns_dict PASSED
-tests/test_sensor.py::TestFetchVirtualPoolCareData::test_fetch_has_expected_keys PASSED
-tests/test_sensor.py::TestFetchVirtualPoolCareData::test_fetch_values_in_range PASSED
-tests/test_sensor.py::TestVirtualPoolCareSensor::test_sensor_initialization PASSED
-tests/test_sensor.py::TestVirtualPoolCareSensor::test_sensor_state PASSED
-tests/test_sensor.py::TestVirtualPoolCareSensor::test_sensor_state_missing_key PASSED
+Testing against the real API helps you:
 
-================================ 6 passed in 0.12s =====================================
-```
+1. **Validate credentials** - Ensure your VirtualPoolCare login works
+2. **Check data format** - Verify the API returns expected data structure
+3. **Test error handling** - See how the code handles real network issues
+4. **Validate parsing** - Ensure mock data matches real data format
 
-## What Gets Tested
+## Security Notes
 
-### 1. Core Functionality
-- ✅ Data fetching returns proper dictionary format
-- ✅ Expected sensor keys are present
-- ✅ Sensor values are within expected ranges
-- ✅ Sensor entities are created correctly
-- ✅ Unique IDs and names are generated properly
-
-### 2. Edge Cases
-- ✅ Missing sensor keys
-- ✅ Empty data responses
-- ✅ Invalid coordinator data
-
-### 3. Integration Components
-- ✅ Sensor state management
-- ✅ Entity attribute handling
-- ✅ Device serial number integration
-
-## Mocking Strategy
-
-The tests use comprehensive mocking to simulate Home Assistant without requiring the full framework:
-
-```python
-# Home Assistant modules are mocked
-mock_ha_modules = {
-    'homeassistant': MagicMock(),
-    'homeassistant.components.sensor': MagicMock(),
-    'homeassistant.core': MagicMock(),
-    # ... etc
-}
-```
-
-This allows testing of:
-- Sensor creation and state management
-- Data coordinator functionality
-- Entity behavior and attributes
+- **Credentials are never stored in code or committed to git**
+- **Environment variables are the most secure option**
+- **The .creds file is automatically ignored by git**
+- **Real API testing makes actual calls which may count against rate limits**
+- **No interactive prompting - tests run automatically if credentials are found**
 
 ## Development Workflow
 
-### 1. Making Changes
-1. Edit source files in the root directory
-2. Run tests to verify changes work
-3. Add new tests for new functionality
-
-### 2. Adding New Tests
-1. Add test methods to `tests/test_sensor.py`
-2. Update `dev_test.py` for interactive testing
-3. Run the full test suite to ensure nothing breaks
-
-### 3. Debugging Issues
-1. Use `dev_test.py` for interactive debugging
-2. Add print statements or breakpoints as needed
-3. Test individual functions in isolation
-
-## Common Issues
-
-### ImportError: No module named 'boto3'
-**Solution:** Install development dependencies
+### 1. Start with Mock Testing
 ```bash
-pip install -r requirements-dev.txt
+python tests/test_runner.py
 ```
+Fast feedback for code changes.
 
-### ModuleNotFoundError: No module named 'sensor'
-**Solution:** Run tests from the `tests` directory or ensure proper path setup
+### 2. Comprehensive Testing (if you have credentials)
 ```bash
-cd tests
-python test_runner.py
+python tests/dev_test.py
 ```
+Automatically tests both mock and real APIs if credentials are available.
 
-### Tests pass but integration fails in Home Assistant
-**Solution:** The mocked environment differs from real HA. Test in a real HA instance for final validation.
+### 3. Run Unit Tests
+```bash
+python -m pytest tests/ -v
+```
+Ensure all automated tests pass.
 
-## Contributing
+### 4. Deploy to Home Assistant
+Test in real HA environment with actual configuration.
 
-When contributing new features:
-
-1. **Add tests** for new functionality
-2. **Run the full test suite** to ensure nothing breaks
-3. **Update this README** if you add new test files or change the test structure
-4. **Consider edge cases** and add tests for error conditions
-
-## Next Steps
-
-After your tests pass locally:
-
-1. **Deploy to Home Assistant** for real-world testing
-2. **Configure with actual credentials** in `configuration.yaml`
-3. **Monitor Home Assistant logs** for any runtime issues
-4. **Test with real VirtualPoolCare data** to verify API integration
-
-## Test Data vs Real Data
-
-**Note:** The test environment uses simulated/random data. Real integration with VirtualPoolCare will:
-- Require actual login credentials
-- Make real API calls to VirtualPoolCare.io
-- Return actual pool sensor measurements
-- Handle real network conditions and API errors
-
-The test environment helps verify code logic and structure, but final testing should always be done with a real Home Assistant installation.
+The modular architecture makes it easy to test changes in isolation before deploying to Home Assistant!

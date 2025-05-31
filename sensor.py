@@ -1,20 +1,18 @@
 """VirtualPoolCare sensor platform."""
 import logging
-from datetime import timedelta
-import json
-import random
+from datetime import timedelta, datetime
 
 from homeassistant.components.sensor import SensorEntity
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.typing import ConfigType, DiscoveryInfoType
+from homeassistant.util import dt as dt_util
 
 from .const import DOMAIN, SCAN_INTERVAL_HOURS
+from .virtualpoolcare_core import VirtualPoolCareAPI, VirtualPoolCareSensorData
 
 _LOGGER = logging.getLogger(__name__)
-
-BASE_URL = "https://vpc.virtualpoolcare.io/prod"
 
 
 async def async_setup_platform(
@@ -47,8 +45,11 @@ async def async_setup_platform(
 
     entities = []
     if coordinator.data:
-        for key in coordinator.data:
+        sensor_keys = VirtualPoolCareSensorData.get_sensor_keys(coordinator.data)
+        
+        for key in sensor_keys:
             entities.append(VirtualPoolCareSensor(coordinator, key))
+    
     async_add_entities(entities, update_before_add=False)
 
     # Store entities for dynamic addition
@@ -62,10 +63,16 @@ async def async_setup_platform(
 
 def _add_new_virtualpoolcare_entities(hass, coordinator, async_add_entities):
     """Add entities if new keys appear in coordinator.data."""
+    device_serial = coordinator.data.get("blue_device_serial", "unknown")
+    
     existing_keys = {
         ent._key for ent in hass.data.get(f"{DOMAIN}_entities", [])
+        if hasattr(ent, '_device_serial') and ent._device_serial == device_serial
     }
-    new_keys = set(coordinator.data or {}) - existing_keys
+    
+    sensor_keys = VirtualPoolCareSensorData.get_sensor_keys(coordinator.data)
+    new_keys = sensor_keys - existing_keys
+    
     if new_keys:
         new_entities = [VirtualPoolCareSensor(coordinator, key) for key in new_keys]
         async_add_entities(new_entities, update_before_add=False)
@@ -82,15 +89,12 @@ class VirtualPoolCareDataUpdateCoordinator(DataUpdateCoordinator):
             name=name,
             update_interval=update_interval,
         )
-        self.email = email
-        self.password = password
+        self.api = VirtualPoolCareAPI(email, password)
 
     async def _async_update_data(self) -> dict:
         """Fetch data from virtualpoolcare.io (runs in executor)."""
         try:
-            result = await self.hass.async_add_executor_job(
-                fetch_virtualpoolcare_data, self.email, self.password
-            )
+            result = await self.hass.async_add_executor_job(self.api.fetch_data)
             return result
         except Exception as err:
             raise UpdateFailed(f"Error fetching VirtualPoolCare data: {err}") from err
@@ -102,20 +106,32 @@ class VirtualPoolCareSensor(SensorEntity):
     def __init__(self, coordinator: VirtualPoolCareDataUpdateCoordinator, key: str):
         self.coordinator = coordinator
         self._key = key
-        self._attr_unique_id = f"{DOMAIN}_{key}"
-        self._attr_name = f"{DOMAIN} {key}"
+        
+        # Get device serial from coordinator data for unique identification
+        device_serial = coordinator.data.get("blue_device_serial", "unknown")
+        
+        # Use core module to create IDs and names
+        self._attr_unique_id = VirtualPoolCareSensorData.create_entity_id(device_serial, key)
+        self._attr_name = VirtualPoolCareSensorData.create_entity_name(device_serial, key)
+        
+        # Store device serial for use in device_info
+        self._device_serial = device_serial
+
+    @property
+    def device_info(self):
+        """Return device information for this sensor."""
+        return {
+            "identifiers": {(DOMAIN, self._device_serial)},
+            "name": f"VirtualPoolCare {self._device_serial}",
+            "manufacturer": "Blue Riiot",
+            "model": "Pool Monitor",
+            "sw_version": "1.0",
+        }
 
     @property
     def native_unit_of_measurement(self):
-        """Return unit if applicable (e.g., "°F" or "ppm")."""
-        unit_mapping = {
-            "temperature": "°C",
-            "ph": None,
-            "orp": "mV",
-            "salinity": "g/L",
-            "chlorine_ppm": "ppm"
-        }
-        return unit_mapping.get(self._key, None)
+        """Return unit if applicable."""
+        return VirtualPoolCareSensorData.get_unit_of_measurement(self._key)
 
     @property
     def state(self):
@@ -123,6 +139,70 @@ class VirtualPoolCareSensor(SensorEntity):
         if self.coordinator.data and self._key in self.coordinator.data:
             return self.coordinator.data[self._key]
         return None
+
+    @property
+    def last_updated(self):
+        """Return when this sensor was last updated (Home Assistant built-in feature)."""
+        if not self.coordinator.data:
+            return None
+            
+        timestamp_key = f"{self._key}_timestamp"
+        if timestamp_key in self.coordinator.data:
+            timestamp_str = self.coordinator.data[timestamp_key]
+            try:
+                # Parse ISO timestamp from VirtualPoolCare
+                return dt_util.parse_datetime(timestamp_str)
+            except (ValueError, TypeError) as e:
+                _LOGGER.warning("Could not parse timestamp %s for %s: %s", timestamp_str, self._key, e)
+                return None
+        return None
+
+    @property
+    def extra_state_attributes(self):
+        """Return additional state attributes."""
+        attributes = {}
+        
+        # Add timestamp if available (also as attribute for compatibility)
+        timestamp_key = f"{self._key}_timestamp"
+        if self.coordinator.data and timestamp_key in self.coordinator.data:
+            attributes["timestamp"] = self.coordinator.data[timestamp_key]
+            
+            # Also add human-readable timestamp
+            try:
+                dt = dt_util.parse_datetime(self.coordinator.data[timestamp_key])
+                if dt:
+                    attributes["last_measurement"] = dt.strftime("%Y-%m-%d %H:%M:%S UTC")
+            except (ValueError, TypeError):
+                pass
+        
+        # Add expired status if available
+        expired_key = f"{self._key}_expired"
+        if self.coordinator.data and expired_key in self.coordinator.data:
+            attributes["expired"] = self.coordinator.data[expired_key]
+        
+        # Add trend if available
+        trend_key = f"{self._key}_trend"
+        if self.coordinator.data and trend_key in self.coordinator.data:
+            attributes["trend"] = self.coordinator.data[trend_key]
+        
+        # Add device serial
+        attributes["device_serial"] = self._device_serial
+        
+        # Add data freshness info
+        if self.last_updated:
+            now = dt_util.utcnow()
+            age_seconds = (now - self.last_updated).total_seconds()
+            age_hours = age_seconds / 3600
+            attributes["data_age_hours"] = round(age_hours, 1)
+            
+            if age_hours > 24:
+                attributes["data_freshness"] = "stale"
+            elif age_hours > 12:
+                attributes["data_freshness"] = "old"
+            else:
+                attributes["data_freshness"] = "fresh"
+        
+        return attributes
 
     async def async_update(self):
         await self.coordinator.async_request_refresh()
@@ -137,207 +217,3 @@ class VirtualPoolCareSensor(SensorEntity):
     def _handle_coordinator_update(self):
         """Write updated state back to HA when coordinator data changes."""
         self.async_write_ha_state()
-
-
-def login_to_virtualpoolcare(email: str, password: str) -> dict:
-    """
-    Step 1: Login to VirtualPoolCare and get AWS credentials.
-    
-    Returns:
-        dict: Contains access_key, secret_key, session_token, region
-    """
-    import requests
-    
-    login_url = f"{BASE_URL}/user/login"
-    login_data = {
-        "email": email,
-        "password": password
-    }
-    
-    # TODO: Handle error responses (401, 403, 500, etc.)
-    response = requests.post(login_url, json=login_data)
-    response.raise_for_status()
-    
-    json_data = response.json()
-    credentials = json_data["credentials"]
-    identity_id = json_data["identity_id"]
-    
-    return {
-        "access_key": credentials["access_key"],
-        "secret_key": credentials["secret_key"],
-        "session_token": credentials["session_token"],
-        "region": identity_id.split(':')[0]
-    }
-
-
-def make_authenticated_request(url: str, method: str, credentials: dict, payload: str = "") -> dict:
-    """
-    Make authenticated API request using boto3 for AWS signature.
-    
-    Args:
-        url: Full URL to request
-        method: HTTP method (GET, POST, etc.)
-        credentials: AWS credentials from login
-        payload: Request body (empty string for GET)
-        
-    Returns:
-        dict: JSON response
-    """
-    import boto3
-    from botocore.auth import SigV4Auth
-    from botocore.awsrequest import AWSRequest
-    import requests
-    
-    # Create boto3 session with temporary credentials
-    session = boto3.Session(
-        aws_access_key_id=credentials["access_key"],
-        aws_secret_access_key=credentials["secret_key"],
-        aws_session_token=credentials["session_token"],
-        region_name=credentials["region"]
-    )
-    
-    # Create AWS request object
-    request = AWSRequest(method=method, url=url, data=payload)
-    request.headers['Content-Type'] = 'application/json'
-    
-    # Sign the request
-    SigV4Auth(session.get_credentials(), "execute-api", credentials["region"]).add_auth(request)
-    
-    # Make the actual HTTP request
-    response = requests.request(
-        method=request.method,
-        url=request.url,
-        headers=dict(request.headers),
-        data=request.body
-    )
-    
-    # TODO: Handle error responses
-    response.raise_for_status()
-    return response.json()
-
-
-def get_pools_list(credentials: dict) -> dict:
-    """
-    Step 2: Get list of pools from VirtualPoolCare.
-    
-    Args:
-        credentials: AWS credentials from login step
-        
-    Returns:
-        dict: Contains pool_id and blue_key for first pool
-    """
-    pools_url = f"{BASE_URL}/pools?page=1&results=15&sortField=user_lastname&sortOrder=ASC"
-    
-    json_data = make_authenticated_request(pools_url, "GET", credentials)
-    
-    # TODO: Handle pagination if > 15 results
-    # TODO: Loop through all results instead of just taking first
-    first_pool = json_data["data"][0]
-    
-    return {
-        "pool_id": first_pool["pool_id"],
-        "blue_key": first_pool["blue_key"]
-    }
-
-
-def get_pool_measurements(credentials: dict, pool_id: str, blue_key: str) -> dict:
-    """
-    Step 3: Get latest measurements for a specific pool.
-    
-    Args:
-        credentials: AWS credentials from login step
-        pool_id: Pool ID from pools list
-        blue_key: Blue device key from pools list
-        
-    Returns:
-        dict: Latest sensor measurements
-    """
-    measurements_url = f"{BASE_URL}/swimming_pool/{pool_id}/blue/{blue_key}/lastMeasurements"
-    
-    return make_authenticated_request(measurements_url, "GET", credentials)
-
-
-def parse_measurements_data(measurements_response: dict) -> dict:
-    """
-    Step 4: Parse measurements response into Home Assistant sensor format.
-    
-    Args:
-        measurements_response: Raw API response from lastMeasurements
-        
-    Returns:
-        dict: Sensor data in format {sensor_name: value}
-    """
-    sensor_data = {}
-    
-    if measurements_response.get("status") != "OK":
-        _LOGGER.warning("Measurements response status not OK: %s", measurements_response.get("status"))
-        return sensor_data
-    
-    # Add metadata
-    sensor_data["blue_device_serial"] = measurements_response.get("blue_device_serial")
-    sensor_data["last_measurement_timestamp"] = measurements_response.get("last_blue_measure_timestamp")
-    
-    # Parse measurement data
-    for measurement in measurements_response.get("data", []):
-        name = measurement.get("name")
-        value = measurement.get("value")
-        timestamp = measurement.get("timestamp")
-        expired = measurement.get("expired", False)
-        
-        if name and value is not None:
-            sensor_data[name] = value
-            sensor_data[f"{name}_timestamp"] = timestamp
-            sensor_data[f"{name}_expired"] = expired
-            
-            # Add trend if available
-            trend = measurement.get("trend")
-            if trend and trend != "undefined":
-                sensor_data[f"{name}_trend"] = trend
-    
-    return sensor_data
-
-
-def fetch_virtualpoolcare_data(email: str, password: str) -> dict:
-    """
-    Main function to fetch all VirtualPoolCare data.
-    
-    Args:
-        email: Login email for VirtualPoolCare
-        password: Login password for VirtualPoolCare
-    
-    Returns:
-        dict: Complete sensor data for Home Assistant
-    """
-    try:
-        # Step 1: Login and get credentials
-        _LOGGER.info("Logging into VirtualPoolCare...")
-        credentials = login_to_virtualpoolcare(email, password)
-        
-        # Step 2: Get pools list
-        _LOGGER.info("Getting pools list...")
-        pool_info = get_pools_list(credentials)
-        
-        # Step 3: Get measurements
-        _LOGGER.info("Getting pool measurements...")
-        measurements = get_pool_measurements(
-            credentials, 
-            pool_info["pool_id"], 
-            pool_info["blue_key"]
-        )
-        
-        # Step 4: Parse and return data
-        _LOGGER.info("Parsing measurement data...")
-        sensor_data = parse_measurements_data(measurements)
-        
-        _LOGGER.info("Successfully fetched VirtualPoolCare data: %s sensors", len(sensor_data))
-        return sensor_data
-        
-    except Exception as e:
-        _LOGGER.error("Error fetching VirtualPoolCare data: %s", str(e))
-        # Return fallback data for testing
-        return {
-            "temperature": round(random.uniform(20.0, 30.0), 1),
-            "ph": round(random.uniform(7.0, 8.0), 2),
-            "orp": round(random.uniform(600, 800), 0),
-            "salinity": round(random.uniform(2.5, 4.0), 1),
-        }

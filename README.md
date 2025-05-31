@@ -2,6 +2,8 @@
 
 Fetches your pool's water‐chemistry, device status, and usage metrics from VirtualPoolCare.io (Blue Riiot) and exposes them as Home Assistant sensors.
 
+TODO: Add a blurb here about why this is better/easier than trying to get the data directly from the Blue Connect, and also how to go about setting up an account.
+
 ## Features
 
 - Retrieves water temperature, pH, chlorine levels, etc.
@@ -47,12 +49,12 @@ sensor:
 ## Example Entities
 
 After configuration, you'll get sensors like:
-- `sensor.virtualpoolcare_007fa655_temperature`
-- `sensor.virtualpoolcare_007fa655_ph` 
-- `sensor.virtualpoolcare_007fa655_orp`
-- `sensor.virtualpoolcare_007fa655_salinity`
+- `sensor.virtualpoolcare_0A2B3C4D_temperature`
+- `sensor.virtualpoolcare_0A2B3C4D_ph` 
+- `sensor.virtualpoolcare_0A2B3C4D_orp`
+- `sensor.virtualpoolcare_0A2B3C4D_salinity`
 
-Where `007fa655` is your Blue Riiot device serial number.
+Where `0A2B3C4D` is your Blue Riiot device serial number.
 
 ## Configuration Options
 
