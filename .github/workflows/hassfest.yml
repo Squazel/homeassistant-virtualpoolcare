@@ -3,24 +3,15 @@ name: Hassfest
 on:
   push:
     paths:
-      - "manifest.json"
-      - "sensor.py"
-      - "const.py"
-      - "__init__.py"
+      - "custom_components/virtualpoolcare/manifest.json"
+      - "custom_components/virtualpoolcare/sensor.py"
+      - "custom_components/virtualpoolcare/const.py"
+      - "custom_components/virtualpoolcare/__init__.py"
 
 jobs:
   hassfest:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
-      - name: Set up Python
-        uses: actions/setup-python@v4
-        with:
-          python-version: "3.11"
-      - name: Install dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install homeassistant
-      - name: Run hassfest
-        run: |
-          python -m script.hassfest
+      - uses: actions/checkout@v4
+      - name: Hassfest validation
+        uses: home-assistant/actions/hassfest@master

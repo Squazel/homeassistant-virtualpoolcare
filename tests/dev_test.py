@@ -7,7 +7,7 @@ import json
 parent_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, parent_dir)
 
-from virtualpoolcare_core import (
+from custom_components.virtualpoolcare.virtualpoolcare_core import (
     VirtualPoolCareAPI,
     MockVirtualPoolCareAPI, 
     VirtualPoolCareSensorData,
@@ -52,9 +52,7 @@ def get_credentials():
     
     # Method 2: Try credentials file
     creds_file = os.path.join(parent_dir, '.creds')
-    print(creds_file)
     if os.path.exists(creds_file):
-        print("FOXFOX")
         try:
             with open(creds_file, 'r') as f:
                 lines = f.read().strip().split('\n')

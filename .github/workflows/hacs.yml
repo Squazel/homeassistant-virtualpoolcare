@@ -3,14 +3,14 @@ name: HACS Validate
 on:
   push:
     paths:
-      - "manifest.json"
+      - "custom_components/virtualpoolcare/manifest.json"
       - "hacs.json"
 
 jobs:
   validate:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - name: Validate HACS Integration
         uses: hacs/action@main
         with:

@@ -24,13 +24,13 @@ for module_name, mock_module in mock_ha_modules.items():
     sys.modules[module_name] = mock_module
 
 # Now we can import our code
-from sensor import (
+from custom_components.virtualpoolcare.sensor import (
     VirtualPoolCareDataUpdateCoordinator,
     VirtualPoolCareSensor,
     fetch_virtualpoolcare_data,
     _add_new_virtualpoolcare_entities
 )
-from const import DOMAIN, SCAN_INTERVAL_HOURS
+from custom_components.virtualpoolcare.const import DOMAIN, SCAN_INTERVAL_HOURS
 
 
 class TestFetchVirtualPoolCareData(unittest.TestCase):
@@ -75,6 +75,8 @@ class TestVirtualPoolCareSensor(unittest.TestCase):
             "pH_level": 7.2,
             "chlorine_ppm": 1.5
         }
+        # Add the available property that the sensor checks
+        self.mock_coordinator.last_update_success = True
         self.sensor = VirtualPoolCareSensor(self.mock_coordinator, "water_temperature")
 
     def test_sensor_initialization(self):
@@ -96,6 +98,37 @@ class TestVirtualPoolCareSensor(unittest.TestCase):
         """Test sensor returns None when coordinator has no data."""
         self.mock_coordinator.data = None
         self.assertIsNone(self.sensor.state)
+
+    def test_sensor_available_property(self):
+        """Test sensor availability property."""
+        # Should be available when coordinator has successful update
+        self.assertTrue(self.sensor.available)
+        
+        # Should be unavailable when coordinator update failed
+        self.mock_coordinator.last_update_success = False
+        self.assertFalse(self.sensor.available)
+
+
+class TestVirtualPoolCareDataUpdateCoordinator(unittest.TestCase):
+    """Test the data update coordinator."""
+
+    def setUp(self):
+        """Set up test fixtures."""
+        self.mock_hass = Mock()
+        self.coordinator = VirtualPoolCareDataUpdateCoordinator(self.mock_hass)
+
+    def test_coordinator_initialization(self):
+        """Test coordinator is initialized correctly."""
+        self.assertEqual(self.coordinator.name, "VirtualPoolCare")
+        self.assertEqual(self.coordinator.update_interval, timedelta(hours=SCAN_INTERVAL_HOURS))
+
+    async def test_coordinator_update_data(self):
+        """Test coordinator data update."""
+        # This is an async test
+        data = await self.coordinator._async_update_data()
+        self.assertIsInstance(data, dict)
+        expected_keys = {"water_temperature", "pH_level", "chlorine_ppm"}
+        self.assertTrue(expected_keys.issubset(data.keys()))
 
 
 if __name__ == "__main__":
