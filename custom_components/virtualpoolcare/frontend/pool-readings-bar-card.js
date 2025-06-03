@@ -56,7 +56,7 @@ class PoolReadingsBarCard extends LitElement {
       .reading-row {
         display: flex;
         align-items: center;
-        margin-bottom: 24px;
+        margin-bottom: 36px;
         min-height: 40px;
       }
 
@@ -77,11 +77,12 @@ class PoolReadingsBarCard extends LitElement {
         position: relative;
         height: 20px;
         margin: 0 16px;
+        padding-top: 18px;
       }
 
       .bar-track {
         width: 100%;
-        height: 100%;
+        height: 20px;
         border-radius: 10px;
         overflow: hidden;
         position: relative;
@@ -95,17 +96,19 @@ class PoolReadingsBarCard extends LitElement {
 
       .value-bubble {
         position: absolute;
-        top: -8px;
+        top: -12px;
         transform: translateX(-50%);
         background: var(--primary-color);
         color: white;
-        padding: 4px 8px;
+        padding: 6px 20%;
         border-radius: 12px;
         font-size: 0.8em;
         font-weight: 600;
         white-space: nowrap;
         z-index: 10;
         box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+        min-width: 40px;
+        text-align: center;
       }
 
       .value-bubble::after {
@@ -124,23 +127,24 @@ class PoolReadingsBarCard extends LitElement {
       .scale-labels {
         display: flex;
         justify-content: space-between;
-        margin-top: 4px;
+        margin-top: 6px;
         font-size: 0.75em;
         color: var(--secondary-text-color);
         padding: 0 8px;
       }
 
-      .temperature-bubble { background: #ff9800; }
-      .temperature-bubble::after { border-top-color: #ff9800; }
+      /* Bubble colors based on range position */
+      .red-bubble { background: #f44336; }
+      .red-bubble::after { border-top-color: #f44336; }
 
-      .ph-bubble { background: #ff9800; }
-      .ph-bubble::after { border-top-color: #ff9800; }
+      .orange-bubble { background: #ff9800; }
+      .orange-bubble::after { border-top-color: #ff9800; }
 
-      .orp-bubble { background: #2196f3; }
-      .orp-bubble::after { border-top-color: #2196f3; }
+      .blue-bubble { background: #2196f3; }
+      .blue-bubble::after { border-top-color: #2196f3; }
 
-      .salinity-bubble { background: #2196f3; }
-      .salinity-bubble::after { border-top-color: #2196f3; }
+      .default-bubble { background: var(--primary-color); }
+      .default-bubble::after { border-top-color: var(--primary-color); }
 
       .no-data {
         text-align: center;
@@ -359,15 +363,28 @@ class PoolReadingsBarCard extends LitElement {
 
   getBubbleClass(readingName, value, config) {
     // Match bubble colors to the official design
-    if (value === null || config.ok_min === undefined) {
-      return `${readingName}-bubble`;
+    // Check if value is out of range first
+    if (value !== null && config.gauge_min !== undefined && config.gauge_max !== undefined) {
+      if (value < config.gauge_min || value > config.gauge_max) {
+        return 'red-bubble';
+      }
     }
 
-    // Use orange for values outside OK range, blue for values in OK range
-    if (value >= config.ok_min && value <= config.ok_max) {
-      return `${readingName}-bubble`; // Will use blue from CSS
+    if (value === null || config.ok_min === undefined) {
+      return 'default-bubble';
+    }
+
+    // Return color based on which range the value falls into
+    if (value < config.warning_low) {
+      return 'red-bubble';
+    } else if (value < config.ok_min) {
+      return 'orange-bubble';
+    } else if (value <= config.ok_max) {
+      return 'blue-bubble';
+    } else if (value <= config.warning_high) {
+      return 'orange-bubble';
     } else {
-      return `${readingName}-bubble`; // Will use orange from CSS
+      return 'red-bubble';
     }
   }
 
@@ -401,19 +418,20 @@ class PoolReadingsBarCard extends LitElement {
       const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
       const diffMins = Math.floor(diffMs / (1000 * 60));
       
+      const locale = this.hass?.locale?.language || navigator.language || 'en-US';
+      
       if (diffMins < 60) {
         return `${diffMins} minutes ago`;
       } else if (diffHours < 24) {
         return `${diffHours} hours ago`;
       } else {
-        return date.toLocaleDateString('en-US', { 
+        return date.toLocaleDateString(locale, { 
           weekday: 'long', 
           year: 'numeric', 
           month: 'long', 
           day: 'numeric',
           hour: 'numeric',
-          minute: '2-digit',
-          hour12: true
+          minute: '2-digit'
         });
       }
     } catch (e) {
