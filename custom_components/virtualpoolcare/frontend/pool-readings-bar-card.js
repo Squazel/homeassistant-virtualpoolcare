@@ -156,27 +156,119 @@ class PoolReadingsBarCard extends LitElement {
   }
 
   setConfig(config) {
-    if (!config.device_serial) {
-      throw new Error("You must specify device_serial in configuration");
-    }
     this.config = {
-      device_serial: config.device_serial,
+      device_serial: config.device_serial || null, // Make optional
       title: config.title || "Latest measurement",
       show_timestamp: config.show_timestamp !== false,
       ...config,
     };
+    
+    // No error thrown if device_serial is missing - we'll auto-detect
+  }
+
+  findVirtualPoolCareEntities() {
+    // Look for any entities that contain virtualpoolcare and our reading types
+    const allEntities = Object.keys(this.hass.states);
+    const poolEntities = allEntities.filter(id => 
+      id.includes('virtualpoolcare') && 
+      (id.includes('temperature') || id.includes('ph') || id.includes('orp') || id.includes('salinity'))
+    );
+    
+    console.log("All entities containing 'virtualpoolcare':", allEntities.filter(id => id.includes('virtualpoolcare')));
+    console.log("Pool reading entities found:", poolEntities);
+    
+    // Auto-detect device serial from first entity if not configured
+    if (!this.config.device_serial && poolEntities.length > 0) {
+      const match = poolEntities[0].match(/sensor\.virtualpoolcare_([^_]+)_/);
+      if (match) {
+        this.config.device_serial = match[1];
+        console.log("Auto-detected device serial:", this.config.device_serial);
+      }
+    }
+    
+    return poolEntities;
   }
 
   getSensorValue(readingName) {
-    const entityId = `sensor.virtualpoolcare_${this.config.device_serial}_${readingName}`;
-    const entity = this.hass.states[entityId];
-    return entity ? parseFloat(entity.state) : null;
+    // Auto-detect entities if no device serial configured
+    if (!this.config.device_serial) {
+      this.findVirtualPoolCareEntities();
+    }
+    
+    // First try the expected pattern with configured/detected device serial
+    if (this.config.device_serial) {
+      const entityId = `sensor.virtualpoolcare_${this.config.device_serial}_${readingName}`;
+      let entity = this.hass.states[entityId];
+      
+      if (entity) {
+        console.log(`Found entity with expected pattern: ${entityId}`);
+        return parseFloat(entity.state);
+      }
+      
+      // Try lowercase serial
+      const entityIdLower = `sensor.virtualpoolcare_${this.config.device_serial.toLowerCase()}_${readingName}`;
+      entity = this.hass.states[entityIdLower];
+      
+      if (entity) {
+        console.log(`Found entity with lowercase serial: ${entityIdLower}`);
+        return parseFloat(entity.state);
+      }
+    }
+    
+    // Fallback: search for any entity containing both virtualpoolcare and the reading name
+    const allEntities = Object.keys(this.hass.states);
+    const matchingEntity = allEntities.find(id => 
+      id.includes('virtualpoolcare') && 
+      id.includes(readingName) &&
+      id.startsWith('sensor.')
+    );
+    
+    if (matchingEntity) {
+      console.log(`Found entity by search: ${matchingEntity} for reading: ${readingName}`);
+      return parseFloat(this.hass.states[matchingEntity].state);
+    }
+    
+    console.log(`No entity found for reading: ${readingName}`);
+    return null;
   }
 
   getSensorAttributes(readingName) {
-    const entityId = `sensor.virtualpoolcare_${this.config.device_serial}_${readingName}`;
-    const entity = this.hass.states[entityId];
-    return entity ? entity.attributes : {};
+    // Auto-detect entities if no device serial configured
+    if (!this.config.device_serial) {
+      this.findVirtualPoolCareEntities();
+    }
+    
+    // Same logic as getSensorValue but return attributes
+    if (this.config.device_serial) {
+      const entityId = `sensor.virtualpoolcare_${this.config.device_serial}_${readingName}`;
+      let entity = this.hass.states[entityId];
+      
+      if (entity) {
+        return entity.attributes;
+      }
+      
+      // Try lowercase serial
+      const entityIdLower = `sensor.virtualpoolcare_${this.config.device_serial.toLowerCase()}_${readingName}`;
+      entity = this.hass.states[entityIdLower];
+      
+      if (entity) {
+        return entity.attributes;
+      }
+    }
+    
+    // Fallback: search for any entity
+    const allEntities = Object.keys(this.hass.states);
+    const matchingEntity = allEntities.find(id => 
+      id.includes('virtualpoolcare') && 
+      id.includes(readingName) &&
+      id.startsWith('sensor.')
+    );
+    
+    if (matchingEntity) {
+      return this.hass.states[matchingEntity].attributes;
+    }
+    
+    return {};
   }
 
   getReadingConfig(readingName) {
@@ -401,6 +493,22 @@ class PoolReadingsBarCard extends LitElement {
   render() {
     if (!this.hass || !this.config) {
       return html`<div>Loading...</div>`;
+    }
+
+    // Debug: Show what entities we're working with
+    const availableEntities = this.findVirtualPoolCareEntities();
+    
+    if (availableEntities.length === 0) {
+      return html`
+        <div class="card-header">
+          <div class="header-text">
+            <div class="header-title">${this.config.title}</div>
+          </div>
+        </div>
+        <div class="no-data">
+          No VirtualPoolCare sensor entities found. Make sure your VirtualPoolCare integration is set up and working.
+        </div>
+      `;
     }
 
     const latestTimestamp = this.getLatestTimestamp();
