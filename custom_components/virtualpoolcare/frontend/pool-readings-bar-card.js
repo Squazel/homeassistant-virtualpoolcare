@@ -439,6 +439,15 @@ class PoolReadingsBarCard extends LitElement {
     }
   }
 
+  formatNumberForDisplay(value) {
+    const num = parseFloat(value);
+    if (isNaN(num)) {
+      return ''; // Return empty string if not a valid number
+    }
+    // Round to 2 decimal places
+    return Math.round(num * 100) / 100;
+  }
+
   renderReading(readingName) {
     const value = this.getSensorValue(readingName);
     const config = this.getReadingConfig(readingName);
@@ -481,20 +490,21 @@ class PoolReadingsBarCard extends LitElement {
             `)}
           </div>
           
+          {/* Conditionally render the value bubble if position and value are valid */}
           ${position !== null && value !== null ? html`
             <div
               class="value-bubble ${bubbleClass}"
               style="left: ${position}%;"
             >
-              ${value}${unit}
+              ${this.formatNumberForDisplay(value)}${unit}
             </div>
           ` : ''}
           
           <div class="scale-labels">
-            <span style="position: absolute; left: ${warningLowPos}%; transform: translateX(-50%);">${config.warning_low}</span>
-            <span style="position: absolute; left: ${okMinPos}%; transform: translateX(-50%);">${config.ok_min}</span>
-            <span style="position: absolute; left: ${okMaxPos}%; transform: translateX(-50%);">${config.ok_max}</span>
-            <span style="position: absolute; left: ${warningHighPos}%; transform: translateX(-50%);">${config.warning_high}</span>
+            <span style="position: absolute; left: ${warningLowPos}%; transform: translateX(-50%);">${this.formatNumberForDisplay(config.warning_low)}</span>
+            <span style="position: absolute; left: ${okMinPos}%; transform: translateX(-50%);">${this.formatNumberForDisplay(config.ok_min)}</span>
+            <span style="position: absolute; left: ${okMaxPos}%; transform: translateX(-50%);">${this.formatNumberForDisplay(config.ok_max)}</span>
+            <span style="position: absolute; left: ${warningHighPos}%; transform: translateX(-50%);">${this.formatNumberForDisplay(config.warning_high)}</span>
           </div>
         </div>
       </div>
