@@ -490,7 +490,6 @@ class PoolReadingsBarCard extends LitElement {
             `)}
           </div>
           
-          {/* Conditionally render the value bubble if position and value are valid */}
           ${position !== null && value !== null ? html`
             <div
               class="value-bubble ${bubbleClass}"
