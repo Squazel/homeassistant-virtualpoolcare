@@ -96,7 +96,7 @@ class PoolReadingsBarCard extends LitElement {
 
       .value-bubble {
         position: absolute;
-        top: -18px;
+        top: -12px;
         transform: translateX(-50%);
         background: var(--primary-color);
         color: white;
