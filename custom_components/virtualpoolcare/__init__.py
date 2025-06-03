@@ -4,16 +4,23 @@ from __future__ import annotations
 import logging
 from pathlib import Path
 
+import voluptuous as vol
+
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import Platform
 from homeassistant.core import HomeAssistant
+from homeassistant.helpers import config_validation as cv
 from homeassistant.helpers.typing import ConfigType
+from homeassistant.components.frontend import add_extra_js_url
 
 from .const import DOMAIN
 
 _LOGGER = logging.getLogger(__name__)
 
 PLATFORMS: list[Platform] = [Platform.SENSOR]
+
+# Config schema - since this integration is config_entry only
+CONFIG_SCHEMA = cv.config_entry_only_config_schema(DOMAIN)
 
 
 async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
@@ -42,31 +49,23 @@ async def _async_register_frontend_card(hass: HomeAssistant) -> None:
     try:
         # Get the path to our frontend file
         frontend_path = Path(__file__).parent / "frontend"
-        card_path = frontend_path / "pool-readings-bar-card.js"
+        card_file = frontend_path / "pool-readings-bar-card.js"
         
-        if card_path.exists():
-            # Register the card as a frontend resource
+        if card_file.exists():
+            # Register the static path for our frontend files
             hass.http.register_static_path(
-                "/virtualpoolcare-card", 
+                f"/{DOMAIN}", 
                 str(frontend_path), 
                 cache_headers=False
             )
             
-            # Add to Lovelace resources automatically
-            if "lovelace" in hass.data:
-                resources = hass.data["lovelace"].get("resources", [])
-                card_url = "/virtualpoolcare-card/pool-readings-bar-card.js"
-                
-                # Check if already registered
-                if not any(resource.get("url") == card_url for resource in resources):
-                    resources.append({
-                        "url": card_url,
-                        "type": "module"
-                    })
-                    
-            _LOGGER.info("VirtualPoolCare frontend card registered successfully")
+            # Add the card to frontend automatically
+            card_url = f"/{DOMAIN}/pool-readings-bar-card.js"
+            add_extra_js_url(hass, card_url)
+            
+            _LOGGER.info("VirtualPoolCare frontend card registered at %s", card_url)
         else:
-            _LOGGER.warning("VirtualPoolCare frontend card file not found")
+            _LOGGER.warning("VirtualPoolCare frontend card file not found at %s", card_file)
             
     except Exception as e:
         _LOGGER.error("Failed to register VirtualPoolCare frontend card: %s", e)

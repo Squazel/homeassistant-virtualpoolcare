@@ -432,16 +432,17 @@ class PoolReadingsBarCard extends LitElement {
 
 customElements.define("pool-readings-bar-card", PoolReadingsBarCard);
 
+console.info(
+  `%c  VIRTUALPOOLCARE-CARD  %c  Loaded automatically with integration  `,
+  "color: orange; font-weight: bold; background: black",
+  "color: white; font-weight: bold; background: dimgray"
+);
+
+// Register with Home Assistant's card registry
 window.customCards = window.customCards || [];
 window.customCards.push({
   type: "pool-readings-bar-card",
   name: "Pool Readings Bar Card",
-  description: "VirtualPoolCare-style multi-bar display for pool water quality readings",
+  description: "VirtualPoolCare pool water quality display (auto-loaded)",
   preview: true,
 });
-
-console.info(
-  `%c  POOL-READINGS-BAR-CARD  %c  Version 1.2.0  `,
-  "color: orange; font-weight: bold; background: black",
-  "color: white; font-weight: bold; background: dimgray"
-);
