@@ -164,6 +164,15 @@ class VirtualPoolCareAPI:
                 sensor_data[f"{name}_timestamp"] = timestamp
                 sensor_data[f"{name}_expired"] = expired
                 
+                # Gauge and threshold data for the dashboard card
+                sensor_data[f"{name}_gauge_min"] = measurement.get("gauge_min")
+                sensor_data[f"{name}_gauge_max"] = measurement.get("gauge_max")
+                sensor_data[f"{name}_ok_min"] = measurement.get("ok_min")
+                sensor_data[f"{name}_ok_max"] = measurement.get("ok_max")
+                sensor_data[f"{name}_warning_low"] = measurement.get("warning_low")
+                sensor_data[f"{name}_warning_high"] = measurement.get("warning_high")
+                sensor_data[f"{name}_priority"] = measurement.get("priority")
+                
                 # Add trend if available
                 trend = measurement.get("trend")
                 if trend and trend != "undefined":
