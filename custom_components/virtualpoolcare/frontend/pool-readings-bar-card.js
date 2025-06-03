@@ -96,13 +96,13 @@ class PoolReadingsBarCard extends LitElement {
 
       .value-bubble {
         position: absolute;
-        top: -12px;
+        top: -18px;
         transform: translateX(-50%);
         background: var(--primary-color);
         color: white;
-        padding: 6px 20%;
+        padding: 4px 10px; /* Reduced from 6px to 4px for shorter height */
         border-radius: 12px;
-        font-size: 0.8em;
+        font-size: 0.75em; /* Reduced from 0.8em to 0.75em */
         font-weight: 600;
         white-space: nowrap;
         z-index: 10;
@@ -541,7 +541,7 @@ class PoolReadingsBarCard extends LitElement {
           <div class="header-title">${this.config.title}</div>
           ${this.config.show_timestamp && latestTimestamp ? html`
             <div class="header-subtitle">
-              ${this.formatTimestamp(latestTimestamp)} by Sigfox 🛰️
+              ${this.formatTimestamp(latestTimestamp)}
             </div>
           ` : ''}
         </div>
@@ -559,7 +559,7 @@ class PoolReadingsBarCard extends LitElement {
 customElements.define("pool-readings-bar-card", PoolReadingsBarCard);
 
 console.info(
-  `%c  VIRTUALPOOLCARE-CARD  %c  Loaded automatically with integration  `,
+  `%c  POOL-READINGS-BAR-CARD  %c  Loaded automatically with integration  `,
   "color: orange; font-weight: bold; background: black",
   "color: white; font-weight: bold; background: dimgray"
 );
