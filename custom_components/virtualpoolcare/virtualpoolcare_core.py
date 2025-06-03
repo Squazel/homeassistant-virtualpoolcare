@@ -223,7 +223,7 @@ class MockVirtualPoolCareAPI(VirtualPoolCareAPI):
         """Return mock data for testing."""
         _LOGGER.info(f"Mock fetching VirtualPoolCare data for {self.email}...")
         
-        return {
+        base_data = {
             "temperature": round(random.uniform(20.0, 30.0), 1),
             "ph": round(random.uniform(7.0, 8.0), 2),
             "orp": round(random.uniform(600, 800), 0),
@@ -231,6 +231,47 @@ class MockVirtualPoolCareAPI(VirtualPoolCareAPI):
             "blue_device_serial": "0A2B3C4D",
             "last_measurement_timestamp": "2024-01-01T12:00:00Z"
         }
+        
+        # Add gauge and threshold data for testing the frontend card
+        gauge_data = {
+            # Temperature gauge data
+            "temperature_gauge_min": 5,
+            "temperature_gauge_max": 50,
+            "temperature_ok_min": 22,
+            "temperature_ok_max": 33,
+            "temperature_warning_low": 15,
+            "temperature_warning_high": 40,
+            "temperature_priority": 1,
+            
+            # pH gauge data  
+            "ph_gauge_min": 6.6,
+            "ph_gauge_max": 8.4,
+            "ph_ok_min": 7.2,
+            "ph_ok_max": 7.6,
+            "ph_warning_low": 6.8,
+            "ph_warning_high": 8.0,
+            "ph_priority": 2,
+            
+            # ORP gauge data
+            "orp_gauge_min": 400,
+            "orp_gauge_max": 900,
+            "orp_ok_min": 650,
+            "orp_ok_max": 800,
+            "orp_warning_low": 550,
+            "orp_warning_high": 850,
+            "orp_priority": 3,
+            
+            # Salinity gauge data
+            "salinity_gauge_min": 1.4,
+            "salinity_gauge_max": 5.7,
+            "salinity_ok_min": 2.8,
+            "salinity_ok_max": 3.8,
+            "salinity_warning_low": 2.2,
+            "salinity_warning_high": 4.5,
+            "salinity_priority": 4,
+        }
+        
+        return {**base_data, **gauge_data}
 
 
 class VirtualPoolCareSensorData:

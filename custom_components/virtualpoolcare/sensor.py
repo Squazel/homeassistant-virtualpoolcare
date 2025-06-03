@@ -8,6 +8,7 @@ from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, Upda
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.typing import ConfigType, DiscoveryInfoType
 from homeassistant.util import dt as dt_util
+from homeassistant.config_entries import ConfigEntry
 
 from .const import DOMAIN, SCAN_INTERVAL_HOURS
 from .virtualpoolcare_core import VirtualPoolCareAPI, VirtualPoolCareSensorData
@@ -22,6 +23,37 @@ _LOGGER = logging.getLogger(__name__)
 # 4. Moving from YAML configuration to config entries
 # This would make the integration appear in the Integrations UI as a first-class citizen
 
+async def async_setup_entry(
+    hass: HomeAssistant,
+    entry: ConfigEntry,
+    async_add_entities: AddEntitiesCallback,
+) -> None:
+    """Set up VirtualPoolCare sensors from config entry."""
+    email = entry.data["email"]
+    password = entry.data["password"]
+    interval_hrs = entry.data.get("update_interval_hours", SCAN_INTERVAL_HOURS)
+    
+    update_interval = timedelta(hours=interval_hrs)
+
+    coordinator = VirtualPoolCareDataUpdateCoordinator(
+        hass, 
+        name=DOMAIN, 
+        update_interval=update_interval,
+        email=email,
+        password=password
+    )
+    
+    await coordinator.async_config_entry_first_refresh()
+    
+    entities = []
+    if coordinator.data:
+        sensor_keys = VirtualPoolCareSensorData.get_sensor_keys(coordinator.data)
+        for key in sensor_keys:
+            entities.append(VirtualPoolCareSensor(coordinator, key))
+    
+    async_add_entities(entities, update_before_add=False)
+
+# Keep existing async_setup_platform for YAML compatibility
 async def async_setup_platform(
     hass: HomeAssistant,
     config: ConfigType,
@@ -169,6 +201,12 @@ class VirtualPoolCareSensor(SensorEntity):
         trend_key = f"{self._key}_trend"
         if self.coordinator.data and trend_key in self.coordinator.data:
             attributes["trend"] = self.coordinator.data[trend_key]
+        
+        # Add gauge and threshold data for the frontend card
+        for attr in ['gauge_min', 'gauge_max', 'ok_min', 'ok_max', 'warning_low', 'warning_high', 'priority']:
+            attr_key = f"{self._key}_{attr}"
+            if self.coordinator.data and attr_key in self.coordinator.data:
+                attributes[attr] = self.coordinator.data[attr_key]
         
         # Add device serial
         attributes["device_serial"] = self._device_serial

@@ -1,0 +1,23 @@
+ {
+  "config": {
+    "step": {
+      "user": {
+        "title": "VirtualPoolCare Setup",
+        "description": "Enter your VirtualPoolCare.io account credentials",
+        "data": {
+          "email": "Email",
+          "password": "Password",
+          "update_interval_hours": "Update interval (hours)"
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "Failed to connect to VirtualPoolCare",
+      "invalid_auth": "Invalid email or password",
+      "unknown": "Unexpected error occurred"
+    },
+    "abort": {
+      "already_configured": "This device is already configured"
+    }
+  }
+}

@@ -197,7 +197,7 @@ class PoolReadingsBarCard extends LitElement {
   }
 
   createSegments(config) {
-    if (!config.gauge_min !== undefined || config.gauge_max === undefined) {
+    if (config.gauge_min === undefined || config.gauge_max === undefined) {
       return [];
     }
 
@@ -257,7 +257,7 @@ class PoolReadingsBarCard extends LitElement {
   }
 
   getValuePosition(value, config) {
-    if (value === null || value === undefined || !config.gauge_min !== undefined || config.gauge_max === undefined) {
+    if (value === null || value === undefined || config.gauge_min === undefined || config.gauge_max === undefined) {
       return null;
     }
     const range = config.gauge_max - config.gauge_min;
@@ -267,7 +267,7 @@ class PoolReadingsBarCard extends LitElement {
 
   getBubbleClass(readingName, value, config) {
     // Match bubble colors to the official design
-    if (value === null || !config.ok_min !== undefined) {
+    if (value === null || config.ok_min === undefined) {
       return `${readingName}-bubble`;
     }
 

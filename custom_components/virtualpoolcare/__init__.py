@@ -19,14 +19,32 @@ _LOGGER = logging.getLogger(__name__)
 
 PLATFORMS: list[Platform] = [Platform.SENSOR]
 
-# Config schema - since this integration is config_entry only
-CONFIG_SCHEMA = cv.config_entry_only_config_schema(DOMAIN)
+# Support both YAML and UI configuration
+CONFIG_SCHEMA = vol.Schema(
+    {
+        DOMAIN: vol.Schema({
+            vol.Required("email"): cv.string,
+            vol.Required("password"): cv.string,
+            vol.Optional("update_interval_hours", default=6): cv.positive_int,
+        })
+    }, 
+    extra=vol.ALLOW_EXTRA
+)
 
 
 async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
     """Set up the VirtualPoolCare component."""
     # Register the frontend card
     await _async_register_frontend_card(hass)
+    
+    # Handle YAML configuration
+    if DOMAIN in config:
+        # Set up platform via YAML (will call async_setup_platform in sensor.py)
+        from homeassistant.helpers import discovery
+        hass.async_create_task(
+            discovery.async_load_platform(hass, "sensor", DOMAIN, config[DOMAIN], config)
+        )
+    
     return True
 
 
