@@ -56,7 +56,7 @@ class PoolReadingsBarCard extends LitElement {
       .reading-row {
         display: flex;
         align-items: center;
-        margin-bottom: 24px;
+        margin-bottom: 36px; /* Increased from 24px for more vertical space */
         min-height: 40px;
       }
 
@@ -77,11 +77,12 @@ class PoolReadingsBarCard extends LitElement {
         position: relative;
         height: 20px;
         margin: 0 16px;
+        padding-top: 20px; /* Add space above for the bubble */
       }
 
       .bar-track {
         width: 100%;
-        height: 100%;
+        height: 20px; /* Explicit height for the bar itself */
         border-radius: 10px;
         overflow: hidden;
         position: relative;
@@ -95,17 +96,19 @@ class PoolReadingsBarCard extends LitElement {
 
       .value-bubble {
         position: absolute;
-        top: -8px;
+        top: -12px; /* Moved up more to sit above the bar */
         transform: translateX(-50%);
         background: var(--primary-color);
         color: white;
-        padding: 4px 8px;
+        padding: 6px 20%; /* Increased padding - 20% on left and right */
         border-radius: 12px;
         font-size: 0.8em;
         font-weight: 600;
         white-space: nowrap;
         z-index: 10;
         box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+        min-width: 40px; /* Ensure minimum width */
+        text-align: center;
       }
 
       .value-bubble::after {
@@ -124,12 +127,13 @@ class PoolReadingsBarCard extends LitElement {
       .scale-labels {
         display: flex;
         justify-content: space-between;
-        margin-top: 4px;
+        margin-top: 6px; /* Increased margin for better spacing */
         font-size: 0.75em;
         color: var(--secondary-text-color);
         padding: 0 8px;
       }
 
+      /* Bubble colors based on reading type and value status */
       .temperature-bubble { background: #ff9800; }
       .temperature-bubble::after { border-top-color: #ff9800; }
 
@@ -141,6 +145,10 @@ class PoolReadingsBarCard extends LitElement {
 
       .salinity-bubble { background: #2196f3; }
       .salinity-bubble::after { border-top-color: #2196f3; }
+
+      /* Red bubble for out-of-range values */
+      .out-of-range-bubble { background: #f44336 !important; }
+      .out-of-range-bubble::after { border-top-color: #f44336 !important; }
 
       .no-data {
         text-align: center;
@@ -352,73 +360,57 @@ class PoolReadingsBarCard extends LitElement {
     if (value === null || value === undefined || config.gauge_min === undefined || config.gauge_max === undefined) {
       return null;
     }
+    
     const range = config.gauge_max - config.gauge_min;
     const position = ((value - config.gauge_min) / range) * 100;
+    
+    // Cap the position to stay within the gauge bounds (0-100%)
     return Math.max(0, Math.min(100, position));
   }
 
   getBubbleClass(readingName, value, config) {
-    // Match bubble colors to the official design
+    // Check if value is out of range first
+    if (value !== null && config.gauge_min !== undefined && config.gauge_max !== undefined) {
+      if (value < config.gauge_min || value > config.gauge_max) {
+        return 'out-of-range-bubble';
+      }
+    }
+    
+    // For in-range values, use reading-specific colors
     if (value === null || config.ok_min === undefined) {
       return `${readingName}-bubble`;
     }
 
-    // Use orange for values outside OK range, blue for values in OK range
-    if (value >= config.ok_min && value <= config.ok_max) {
-      return `${readingName}-bubble`; // Will use blue from CSS
-    } else {
-      return `${readingName}-bubble`; // Will use orange from CSS
-    }
+    // Use reading-specific bubble colors (these will be overridden by CSS)
+    return `${readingName}-bubble`;
   }
 
-  getUnitOfMeasurement(readingName) {
-    const unitMapping = {
-      "temperature": "°C",
-      "ph": "",
-      "orp": "mV", 
-      "salinity": "g/l"
-    };
-    return unitMapping[readingName] || "";
-  }
-
-  getReadingLabel(readingName) {
-    const labelMapping = {
-      "temperature": "Temperature",
-      "ph": "pH",
-      "orp": "ORP",
-      "salinity": "Salinity"
-    };
-    return labelMapping[readingName] || readingName;
-  }
-
-  formatTimestamp(timestamp) {
-    if (!timestamp) return '';
+  getScaleLabels(config) {
+    // Show values at color intersections
+    const labels = [];
     
-    try {
-      const date = new Date(timestamp);
-      const now = new Date();
-      const diffMs = now - date;
-      const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
-      const diffMins = Math.floor(diffMs / (1000 * 60));
-      
-      if (diffMins < 60) {
-        return `${diffMins} minutes ago`;
-      } else if (diffHours < 24) {
-        return `${diffHours} hours ago`;
-      } else {
-        return date.toLocaleDateString('en-US', { 
-          weekday: 'long', 
-          year: 'numeric', 
-          month: 'long', 
-          day: 'numeric',
-          hour: 'numeric',
-          minute: '2-digit',
-          hour12: true
-        });
-      }
-    } catch (e) {
-      return timestamp;
+    if (config.gauge_min !== undefined) labels.push(config.gauge_min);
+    if (config.warning_low !== undefined && config.warning_low !== config.gauge_min) labels.push(config.warning_low);
+    if (config.ok_min !== undefined && config.ok_min !== config.warning_low) labels.push(config.ok_min);
+    if (config.ok_max !== undefined && config.ok_max !== config.ok_min) labels.push(config.ok_max);
+    if (config.warning_high !== undefined && config.warning_high !== config.ok_max) labels.push(config.warning_high);
+    if (config.gauge_max !== undefined && config.gauge_max !== config.warning_high) labels.push(config.gauge_max);
+    
+    // Remove duplicates and sort
+    const uniqueLabels = [...new Set(labels)].sort((a, b) => a - b);
+    
+    // Limit to 4-5 most important labels to avoid crowding
+    if (uniqueLabels.length > 5) {
+      // Keep min, max, and the most important middle values
+      return [
+        uniqueLabels[0], // gauge_min
+        config.ok_min,   // ok_min
+        config.ok_max,   // ok_max  
+        uniqueLabels[uniqueLabels.length - 1] // gauge_max
+      ].filter(val => val !== undefined);
     }
+    
+    return uniqueLabels;
   }
 
   renderReading(readingName) {
@@ -440,6 +432,7 @@ class PoolReadingsBarCard extends LitElement {
     const position = this.getValuePosition(value, config);
     const unit = this.getUnitOfMeasurement(readingName);
     const bubbleClass = this.getBubbleClass(readingName, value, config);
+    const scaleLabels = this.getScaleLabels(config);
 
     return html`
       <div class="reading-row">
@@ -465,10 +458,7 @@ class PoolReadingsBarCard extends LitElement {
           ` : ''}
           
           <div class="scale-labels">
-            <span>${config.gauge_min}</span>
-            <span>${config.ok_min}</span>
-            <span>${config.ok_max}</span>
-            <span>${config.gauge_max}</span>
+            ${scaleLabels.map(label => html`<span>${label}</span>`)}
           </div>
         </div>
       </div>
