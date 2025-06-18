@@ -439,6 +439,15 @@ class PoolReadingsBarCard extends LitElement {
     }
   }
 
+  formatNumberForDisplay(value) {
+    const num = parseFloat(value);
+    if (isNaN(num)) {
+      return ''; // Return empty string if not a valid number
+    }
+    // Round to 2 decimal places
+    return Math.round(num * 100) / 100;
+  }
+
   renderReading(readingName) {
     const value = this.getSensorValue(readingName);
     const config = this.getReadingConfig(readingName);
@@ -459,6 +468,14 @@ class PoolReadingsBarCard extends LitElement {
     const unit = this.getUnitOfMeasurement(readingName);
     const bubbleClass = this.getBubbleClass(readingName, value, config);
 
+    // Calculate positions for threshold labels
+    // TODO: consider options if labels may overlap - either stagger or suppress some
+    const totalRange = config.gauge_max - config.gauge_min;
+    const warningLowPos = ((config.warning_low - config.gauge_min) / totalRange) * 100;
+    const okMinPos = ((config.ok_min - config.gauge_min) / totalRange) * 100;
+    const okMaxPos = ((config.ok_max - config.gauge_min) / totalRange) * 100;
+    const warningHighPos = ((config.warning_high - config.gauge_min) / totalRange) * 100;
+
     return html`
       <div class="reading-row">
         <div class="reading-label">${this.getReadingLabel(readingName)}</div>
@@ -478,15 +495,15 @@ class PoolReadingsBarCard extends LitElement {
               class="value-bubble ${bubbleClass}"
               style="left: ${position}%;"
             >
-              ${value}${unit}
+              ${this.formatNumberForDisplay(value)}${unit}
             </div>
           ` : ''}
           
           <div class="scale-labels">
-            <span>${config.gauge_min}</span>
-            <span>${config.ok_min}</span>
-            <span>${config.ok_max}</span>
-            <span>${config.gauge_max}</span>
+            <span style="position: absolute; left: ${warningLowPos}%; transform: translateX(-50%);">${this.formatNumberForDisplay(config.warning_low)}</span>
+            <span style="position: absolute; left: ${okMinPos}%; transform: translateX(-50%);">${this.formatNumberForDisplay(config.ok_min)}</span>
+            <span style="position: absolute; left: ${okMaxPos}%; transform: translateX(-50%);">${this.formatNumberForDisplay(config.ok_max)}</span>
+            <span style="position: absolute; left: ${warningHighPos}%; transform: translateX(-50%);">${this.formatNumberForDisplay(config.warning_high)}</span>
           </div>
         </div>
       </div>
