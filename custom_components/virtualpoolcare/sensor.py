@@ -43,7 +43,8 @@ async def async_setup_entry(
         password=password
     )
     
-    await coordinator.async_config_entry_first_refresh()
+    # Use async_refresh instead of async_config_entry_first_refresh when entry is already loaded
+    await coordinator.async_refresh()
     
     entities = []
     if coordinator.data:
@@ -86,6 +87,7 @@ async def async_setup_platform(
     )
     
     _LOGGER.info("VirtualPoolCare: Coordinator created, attempting first refresh")
+    # For YAML setup, we can still use async_config_entry_first_refresh since this is during initial setup
     await coordinator.async_config_entry_first_refresh()
     
     _LOGGER.info("VirtualPoolCare: First refresh completed. Data available: %s", bool(coordinator.data))

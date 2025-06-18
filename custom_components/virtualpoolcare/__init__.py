@@ -12,6 +12,7 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers import config_validation as cv
 from homeassistant.helpers.typing import ConfigType
 from homeassistant.components.frontend import add_extra_js_url
+from homeassistant.components.http import StaticPathConfig
 
 from .const import DOMAIN
 
@@ -70,12 +71,14 @@ async def _async_register_frontend_card(hass: HomeAssistant) -> None:
         card_file = frontend_path / "pool-readings-bar-card.js"
         
         if card_file.exists():
-            # Register the static path for our frontend files
-            hass.http.register_static_path(
-                f"/{DOMAIN}", 
-                str(frontend_path), 
-                cache_headers=False
-            )
+            # Register the static path for our frontend files using the new async method
+            await hass.http.async_register_static_paths([
+                StaticPathConfig(
+                    f"/{DOMAIN}", 
+                    str(frontend_path), 
+                    cache_headers=False
+                )
+            ])
             
             # Add the card to frontend automatically
             card_url = f"/{DOMAIN}/pool-readings-bar-card.js"
