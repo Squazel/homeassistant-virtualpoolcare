@@ -285,9 +285,15 @@ class VirtualPoolCareSensorData:
             "last_measurement_timestamp"
         }
         
+        # Exclude all gauge, threshold, and metadata suffixes
+        excluded_suffixes = (
+            '_timestamp', '_expired', '_trend', '_gauge_min', '_gauge_max',
+            '_ok_min', '_ok_max', '_warning_low', '_warning_high', '_priority'
+        )
+        
         return {
             key for key in data.keys() 
-            if not key.endswith(('_timestamp', '_expired', '_trend')) 
+            if not key.endswith(excluded_suffixes)
             and key not in excluded_keys
         }
     
