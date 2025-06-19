@@ -29,26 +29,11 @@ async def async_setup_entry(
     async_add_entities: AddEntitiesCallback,
 ) -> None:
     """Set up VirtualPoolCare sensors from config entry."""
-    email = entry.data["email"]
-    password = entry.data["password"]
-    interval_hrs = entry.data.get("update_interval_hours", SCAN_INTERVAL_HOURS)
+    # Get the coordinator that was created in __init__.py
+    coordinator = hass.data[DOMAIN][entry.entry_id]
     
-    update_interval = timedelta(hours=interval_hrs)
-
-    coordinator = VirtualPoolCareDataUpdateCoordinator(
-        hass, 
-        name=DOMAIN, 
-        update_interval=update_interval,
-        email=email,
-        password=password
-    )
-    
-    # Use async_config_entry_first_refresh for initial setup
-    await coordinator.async_config_entry_first_refresh()
-    
-    # Store coordinator in hass.data for potential future use
-    hass.data.setdefault(DOMAIN, {})
-    hass.data[DOMAIN][entry.entry_id] = coordinator
+    # No need to call any refresh methods - coordinator already has data
+    # from async_config_entry_first_refresh() called in __init__.py
     
     entities = []
     if coordinator.data:
@@ -90,9 +75,8 @@ async def async_setup_platform(
         password=password
     )
     
-    _LOGGER.info("VirtualPoolCare: Coordinator created, attempting first refresh")
-    # For YAML setup, we can still use async_config_entry_first_refresh since this is during initial setup
-    await coordinator.async_config_entry_first_refresh()
+    # For YAML setup, use async_request_refresh instead
+    await coordinator.async_request_refresh()
     
     _LOGGER.info("VirtualPoolCare: First refresh completed. Data available: %s", bool(coordinator.data))
     if coordinator.data:
