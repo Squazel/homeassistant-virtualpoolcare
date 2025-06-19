@@ -11,13 +11,13 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import Platform
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import config_validation as cv
-from homeassistant.helpers.typing import ConfigType
+from homeassistant.helpers.typing import ConfigType, DiscoveryInfoType
 from homeassistant.components.frontend import add_extra_js_url
 from homeassistant.components.http import StaticPathConfig
+from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
-from .const import DOMAIN
-from .coordinator import VirtualPoolCareDataUpdateCoordinator
-from .sensor import VirtualPoolCareSensor, VirtualPoolCareSensorData
+from .const import DOMAIN, SCAN_INTERVAL_HOURS
+from .sensor import VirtualPoolCareSensor, VirtualPoolCareSensorData, VirtualPoolCareDataUpdateCoordinator
 
 _LOGGER = logging.getLogger(__name__)
 
