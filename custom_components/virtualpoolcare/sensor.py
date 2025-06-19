@@ -43,8 +43,12 @@ async def async_setup_entry(
         password=password
     )
     
-    # Use async_refresh instead of async_config_entry_first_refresh when entry is already loaded
-    await coordinator.async_refresh()
+    # Use async_config_entry_first_refresh for initial setup
+    await coordinator.async_config_entry_first_refresh()
+    
+    # Store coordinator in hass.data for potential future use
+    hass.data.setdefault(DOMAIN, {})
+    hass.data[DOMAIN][entry.entry_id] = coordinator
     
     entities = []
     if coordinator.data:
@@ -295,7 +299,10 @@ class VirtualPoolCareSensor(SensorEntity):
         return None
 
     async def async_update(self):
-        await self.coordinator.async_request_refresh()
+        """Request fresh data from the coordinator."""
+        # Use async_refresh() instead of async_request_refresh() 
+        # for manual updates to ensure data is fetched
+        await self.coordinator.async_refresh()
 
     async def async_added_to_hass(self):
         """Register listener so HA updates state when coordinator data changes."""

@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import logging
 from pathlib import Path
+from datetime import timedelta
 
 import voluptuous as vol
 
@@ -15,6 +16,8 @@ from homeassistant.components.frontend import add_extra_js_url
 from homeassistant.components.http import StaticPathConfig
 
 from .const import DOMAIN
+from .coordinator import VirtualPoolCareDataUpdateCoordinator
+from .sensor import VirtualPoolCareSensor, VirtualPoolCareSensorData
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -49,13 +52,82 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
     return True
 
 
-async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
-    """Set up VirtualPoolCare from a config entry."""
-    hass.data.setdefault(DOMAIN, {})
+async def async_setup_entry(
+    hass: HomeAssistant,
+    entry: ConfigEntry,
+    async_add_entities: AddEntitiesCallback,
+) -> None:
+    """Set up VirtualPoolCare sensors from config entry."""
+    email = entry.data["email"]
+    password = entry.data["password"]
+    interval_hrs = entry.data.get("update_interval_hours", SCAN_INTERVAL_HOURS)
     
-    await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
+    update_interval = timedelta(hours=interval_hrs)
+
+    coordinator = VirtualPoolCareDataUpdateCoordinator(
+        hass, 
+        name=DOMAIN, 
+        update_interval=update_interval,
+        email=email,
+        password=password
+    )
     
-    return True
+    # Use async_config_entry_first_refresh for initial setup
+    await coordinator.async_config_entry_first_refresh()
+    
+    entities = []
+    if coordinator.data:
+        sensor_keys = VirtualPoolCareSensorData.get_sensor_keys(coordinator.data)
+        for key in sensor_keys:
+            entities.append(VirtualPoolCareSensor(coordinator, key))
+    
+    async_add_entities(entities, update_before_add=False)
+
+
+async def async_setup_platform(
+    hass: HomeAssistant,
+    config: ConfigType,
+    async_add_entities: AddEntitiesCallback,
+    discovery_info: DiscoveryInfoType | None = None,
+) -> None:
+    """Set up the sensor platform via YAML."""
+    _LOGGER.info("VirtualPoolCare: Starting platform setup")
+    
+    # Get configuration values
+    email = config.get("email")
+    password = config.get("password")
+    interval_hrs = config.get("update_interval_hours", SCAN_INTERVAL_HOURS)
+    
+    # Validate required configuration
+    if not email or not password:
+        _LOGGER.error("VirtualPoolCare: email and password are required in configuration")
+        return
+    
+    update_interval = timedelta(hours=interval_hrs)
+
+    coordinator = VirtualPoolCareDataUpdateCoordinator(
+        hass, 
+        name=DOMAIN, 
+        update_interval=update_interval,
+        email=email,
+        password=password
+    )
+    
+    # For YAML setup, we should handle first refresh errors gracefully
+    try:
+        await coordinator.async_config_entry_first_refresh()
+    except Exception as err:
+        _LOGGER.error("VirtualPoolCare: Failed to fetch initial data: %s", err)
+        # Still create entities even if first fetch fails
+        # The coordinator will retry on its normal schedule
+    
+    entities = []
+    if coordinator.data:
+        sensor_keys = VirtualPoolCareSensorData.get_sensor_keys(coordinator.data)
+        for key in sensor_keys:
+            entities.append(VirtualPoolCareSensor(coordinator, key))
+    
+    async_add_entities(entities, update_before_add=False)
 
 
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
