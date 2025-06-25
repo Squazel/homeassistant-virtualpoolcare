@@ -29,21 +29,11 @@ async def async_setup_entry(
     async_add_entities: AddEntitiesCallback,
 ) -> None:
     """Set up VirtualPoolCare sensors from config entry."""
-    email = entry.data["email"]
-    password = entry.data["password"]
-    interval_hrs = entry.data.get("update_interval_hours", SCAN_INTERVAL_HOURS)
+    # Get the coordinator that was created in __init__.py
+    coordinator = hass.data[DOMAIN][entry.entry_id]
     
-    update_interval = timedelta(hours=interval_hrs)
-
-    coordinator = VirtualPoolCareDataUpdateCoordinator(
-        hass, 
-        name=DOMAIN, 
-        update_interval=update_interval,
-        email=email,
-        password=password
-    )
-    
-    await coordinator.async_config_entry_first_refresh()
+    # No need to call any refresh methods - coordinator already has data
+    # from async_config_entry_first_refresh() called in __init__.py
     
     entities = []
     if coordinator.data:
@@ -85,8 +75,8 @@ async def async_setup_platform(
         password=password
     )
     
-    _LOGGER.debug("VirtualPoolCare: Coordinator created, attempting first refresh")
-    await coordinator.async_config_entry_first_refresh()
+    # For YAML setup, use async_request_refresh instead
+    await coordinator.async_request_refresh()
     
     _LOGGER.debug("VirtualPoolCare: First refresh completed. Data available: %s", bool(coordinator.data))
     if coordinator.data:
@@ -293,7 +283,10 @@ class VirtualPoolCareSensor(SensorEntity):
         return None
 
     async def async_update(self):
-        await self.coordinator.async_request_refresh()
+        """Request fresh data from the coordinator."""
+        # Use async_refresh() instead of async_request_refresh() 
+        # for manual updates to ensure data is fetched
+        await self.coordinator.async_refresh()
 
     async def async_added_to_hass(self):
         """Register listener so HA updates state when coordinator data changes."""

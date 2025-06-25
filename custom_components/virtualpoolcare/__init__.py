@@ -12,8 +12,9 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers import config_validation as cv
 from homeassistant.helpers.typing import ConfigType
 from homeassistant.components.frontend import add_extra_js_url
+from homeassistant.components.http import StaticPathConfig
 
-from .const import DOMAIN
+from .const import DOMAIN, SCAN_INTERVAL_HOURS
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -50,10 +51,34 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Set up VirtualPoolCare from a config entry."""
+    # Create the coordinator here in __init__.py
+    email = entry.data["email"]
+    password = entry.data["password"]
+    interval_hrs = entry.data.get("update_interval_hours", SCAN_INTERVAL_HOURS)
+    
+    from datetime import timedelta
+    from .sensor import VirtualPoolCareDataUpdateCoordinator
+    
+    update_interval = timedelta(hours=interval_hrs)
+    
+    coordinator = VirtualPoolCareDataUpdateCoordinator(
+        hass, 
+        name=DOMAIN, 
+        update_interval=update_interval,
+        email=email,
+        password=password
+    )
+    
+    # THIS is where async_config_entry_first_refresh should be called
+    # The config entry is still in SETUP_IN_PROGRESS state here
+    await coordinator.async_config_entry_first_refresh()
+    
+    # Store coordinator for the sensor platform to use
     hass.data.setdefault(DOMAIN, {})
+    hass.data[DOMAIN][entry.entry_id] = coordinator
     
+    # Forward setup to sensor platform
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
-    
     return True
 
 
@@ -70,12 +95,14 @@ async def _async_register_frontend_card(hass: HomeAssistant) -> None:
         card_file = frontend_path / "pool-readings-bar-card.js"
         
         if card_file.exists():
-            # Register the static path for our frontend files
-            hass.http.register_static_path(
-                f"/{DOMAIN}", 
-                str(frontend_path), 
-                cache_headers=False
-            )
+            # Register the static path for our frontend files using the new async method
+            await hass.http.async_register_static_paths([
+                StaticPathConfig(
+                    f"/{DOMAIN}", 
+                    str(frontend_path), 
+                    cache_headers=False
+                )
+            ])
             
             # Add the card to frontend automatically
             card_url = f"/{DOMAIN}/pool-readings-bar-card.js"
