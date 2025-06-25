@@ -189,15 +189,15 @@ class VirtualPoolCareAPI:
         """
         try:
             # Step 1: Login and get credentials
-            _LOGGER.info("Logging into VirtualPoolCare...")
+            _LOGGER.debug("Logging into VirtualPoolCare...")
             credentials = self.login_to_virtualpoolcare()
             
             # Step 2: Get pools list
-            _LOGGER.info("Getting pools list...")
+            _LOGGER.debug("Getting pools list...")
             pool_info = self.get_pools_list(credentials)
             
             # Step 3: Get measurements
-            _LOGGER.info("Getting pool measurements...")
+            _LOGGER.debug("Getting pool measurements...")
             measurements = self.get_pool_measurements(
                 credentials, 
                 pool_info["pool_id"], 
@@ -205,10 +205,10 @@ class VirtualPoolCareAPI:
             )
             
             # Step 4: Parse and return data
-            _LOGGER.info("Parsing measurement data...")
+            _LOGGER.debug("Parsing measurement data...")
             sensor_data = self.parse_measurements_data(measurements)
             
-            _LOGGER.info("Successfully fetched VirtualPoolCare data: %s sensors", len(sensor_data))
+            _LOGGER.debug("Successfully fetched VirtualPoolCare data: %s sensors", len(sensor_data))
             return sensor_data
             
         except Exception as e:
@@ -221,7 +221,7 @@ class MockVirtualPoolCareAPI(VirtualPoolCareAPI):
     
     def fetch_data(self) -> dict:
         """Return mock data for testing."""
-        _LOGGER.info(f"Mock fetching VirtualPoolCare data for {self.email}...")
+        _LOGGER.debug(f"Mock fetching VirtualPoolCare data for {self.email}...")
         
         base_data = {
             "temperature": round(random.uniform(20.0, 30.0), 1),

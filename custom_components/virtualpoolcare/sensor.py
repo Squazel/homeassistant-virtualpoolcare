@@ -61,14 +61,14 @@ async def async_setup_platform(
     discovery_info: DiscoveryInfoType | None = None,
 ) -> None:
     """Set up the sensor platform via YAML."""
-    _LOGGER.info("VirtualPoolCare: Starting platform setup")
+    _LOGGER.debug("VirtualPoolCare: Starting platform setup")
     
     # Get configuration values
     email = config.get("email")
     password = config.get("password")
     interval_hrs = config.get("update_interval_hours", SCAN_INTERVAL_HOURS)
     
-    _LOGGER.info("VirtualPoolCare: Config - email: %s, interval_hrs: %s", email[:5] + "***" if email else None, interval_hrs)
+    _LOGGER.debug("VirtualPoolCare: Config - email: %s, interval_hrs: %s", email[:5] + "***" if email else None, interval_hrs)
     
     # Validate required configuration
     if not email or not password:
@@ -85,24 +85,24 @@ async def async_setup_platform(
         password=password
     )
     
-    _LOGGER.info("VirtualPoolCare: Coordinator created, attempting first refresh")
+    _LOGGER.debug("VirtualPoolCare: Coordinator created, attempting first refresh")
     await coordinator.async_config_entry_first_refresh()
     
-    _LOGGER.info("VirtualPoolCare: First refresh completed. Data available: %s", bool(coordinator.data))
+    _LOGGER.debug("VirtualPoolCare: First refresh completed. Data available: %s", bool(coordinator.data))
     if coordinator.data:
         _LOGGER.debug("VirtualPoolCare: Data keys: %s", list(coordinator.data.keys()))
 
     entities = []
     if coordinator.data:
         sensor_keys = VirtualPoolCareSensorData.get_sensor_keys(coordinator.data)
-        _LOGGER.info("VirtualPoolCare: Found %d sensor keys: %s", len(sensor_keys), sensor_keys)
+        _LOGGER.debug("VirtualPoolCare: Found %d sensor keys: %s", len(sensor_keys), sensor_keys)
         
         for key in sensor_keys:
             entities.append(VirtualPoolCareSensor(coordinator, key))
     else:
         _LOGGER.warning("VirtualPoolCare: No data received from coordinator")
     
-    _LOGGER.info("VirtualPoolCare: Adding %d entities to Home Assistant", len(entities))
+    _LOGGER.debug("VirtualPoolCare: Adding %d entities to Home Assistant", len(entities))
     async_add_entities(entities, update_before_add=False)
 
     # Store entities for dynamic addition

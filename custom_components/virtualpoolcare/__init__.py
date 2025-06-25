@@ -81,7 +81,7 @@ async def _async_register_frontend_card(hass: HomeAssistant) -> None:
             card_url = f"/{DOMAIN}/pool-readings-bar-card.js"
             add_extra_js_url(hass, card_url)
             
-            _LOGGER.info("VirtualPoolCare frontend card registered at %s", card_url)
+            _LOGGER.debug("VirtualPoolCare frontend card registered at %s", card_url)
         else:
             _LOGGER.warning("VirtualPoolCare frontend card file not found at %s", card_file)
             
