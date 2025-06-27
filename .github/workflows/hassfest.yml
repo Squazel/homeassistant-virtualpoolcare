@@ -2,11 +2,7 @@ name: Hassfest
 
 on:
   push:
-    paths:
-      - "custom_components/virtualpoolcare/manifest.json"
-      - "custom_components/virtualpoolcare/sensor.py"
-      - "custom_components/virtualpoolcare/const.py"
-      - "custom_components/virtualpoolcare/__init__.py"
+  pull_request:
 
 jobs:
   hassfest:

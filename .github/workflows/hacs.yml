@@ -2,9 +2,7 @@ name: HACS Validate
 
 on:
   push:
-    paths:
-      - "custom_components/virtualpoolcare/manifest.json"
-      - "hacs.json"
+  pull_request:
 
 jobs:
   validate:
