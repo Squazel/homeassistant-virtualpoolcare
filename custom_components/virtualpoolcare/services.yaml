@@ -1,0 +1,4 @@
+force_update:
+  name: Force Update
+  description: Immediately fetch new data from VirtualPoolCare, bypassing the normal polling interval.
+  fields: {}
