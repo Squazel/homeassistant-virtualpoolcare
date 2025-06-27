@@ -46,6 +46,22 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
             discovery.async_load_platform(hass, "sensor", DOMAIN, config[DOMAIN], config)
         )
     
+    # Register force update service
+    async def handle_force_update_service(call):
+        """Handle the force update service call."""
+        coordinators = []
+        if DOMAIN in hass.data:
+            coordinators = list(hass.data[DOMAIN].values())
+        for coordinator in coordinators:
+            await coordinator.async_refresh()
+        _LOGGER.info("VirtualPoolCare: Force update triggered via service call.")
+
+    hass.services.async_register(
+        DOMAIN,
+        "force_update",
+        handle_force_update_service,
+    )
+    
     return True
 
 

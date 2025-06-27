@@ -282,12 +282,6 @@ class VirtualPoolCareSensor(SensorEntity):
                 return None
         return None
 
-    async def async_update(self):
-        """Request fresh data from the coordinator."""
-        # Use async_refresh() instead of async_request_refresh() 
-        # for manual updates to ensure data is fetched
-        await self.coordinator.async_refresh()
-
     async def async_added_to_hass(self):
         """Register listener so HA updates state when coordinator data changes."""
         self.async_on_remove(

@@ -10,6 +10,7 @@ TODO: Add a blurb here about why this is better/easier than trying to get the da
 - Updates on a configurable interval (default: 6 hours).
 - Each metric becomes its own `sensor.virtualpoolcare_<device_serial>_<metric>` entity.
 - Sensors are grouped by device for easy organization.
+- **Manual refresh supported:** Use the `virtualpoolcare.force_update` Home Assistant service to fetch new data on demand.
 
 ## Installation via HACS
 
@@ -95,3 +96,17 @@ See [Releases](https://github.com/Squazel/homeassistant-virtualpoolcare/releases
 ## License
 
 Licensed under the MIT License. See [LICENSE](LICENSE) for details.
+
+## Manual Refresh
+
+If you want to fetch new data immediately (outside the normal polling interval), you can call the `virtualpoolcare.force_update` service from the Home Assistant UI or in automations/scripts:
+
+**From Developer Tools → Services:**
+- Select `virtualpoolcare.force_update` and click "Call Service".
+
+**From YAML:**
+```yaml
+service: virtualpoolcare.force_update
+```
+
+This will trigger an immediate update from VirtualPoolCare.
