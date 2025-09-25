@@ -27,6 +27,7 @@ CONFIG_SCHEMA = vol.Schema(
             vol.Required("email"): cv.string,
             vol.Required("password"): cv.string,
             vol.Optional("update_interval_hours", default=6): cv.positive_int,
+            vol.Optional("api_timeout_seconds", default=20): cv.positive_int,
         })
     }, 
     extra=vol.ALLOW_EXTRA
@@ -71,6 +72,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     email = entry.data["email"]
     password = entry.data["password"]
     interval_hrs = entry.data.get("update_interval_hours", SCAN_INTERVAL_HOURS)
+    timeout = entry.data.get("api_timeout_seconds", 20)
     
     from datetime import timedelta
     from .sensor import VirtualPoolCareDataUpdateCoordinator
@@ -82,12 +84,14 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         name=DOMAIN, 
         update_interval=update_interval,
         email=email,
-        password=password
+        password=password,
+        timeout=timeout
     )
     
-    # THIS is where async_config_entry_first_refresh should be called
-    # The config entry is still in SETUP_IN_PROGRESS state here
-    await coordinator.async_config_entry_first_refresh()
+    # Don't block setup on first refresh - this causes 10+ second delays
+    # Initialize with empty data and schedule background refresh
+    coordinator.async_set_updated_data({})
+    hass.async_create_task(coordinator.async_config_entry_first_refresh())
     
     # Store coordinator for the sensor platform to use
     hass.data.setdefault(DOMAIN, {})

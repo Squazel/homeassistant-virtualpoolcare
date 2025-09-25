@@ -2,6 +2,7 @@
 import logging
 import json
 import random
+import time
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -14,9 +15,10 @@ BASE_URL = "https://vpc.virtualpoolcare.io/prod"
 class VirtualPoolCareAPI:
     """Core API client for VirtualPoolCare without Home Assistant dependencies."""
     
-    def __init__(self, email: str, password: str):
+    def __init__(self, email: str, password: str, timeout: int = 20):
         self.email = email
         self.password = password
+        self.timeout = timeout  # Default 20 second timeout
     
     def login_to_virtualpoolcare(self) -> dict:
         """
@@ -33,8 +35,8 @@ class VirtualPoolCareAPI:
             "password": self.password
         }
         
-        # TODO: Handle error responses (401, 403, 500, etc.)
-        response = requests.post(login_url, json=login_data)
+        # Add timeout to prevent long delays
+        response = requests.post(login_url, json=login_data, timeout=self.timeout)
         response.raise_for_status()
         
         json_data = response.json()
@@ -81,12 +83,13 @@ class VirtualPoolCareAPI:
         # Sign the request
         SigV4Auth(session.get_credentials(), "execute-api", credentials["region"]).add_auth(request)
         
-        # Make the actual HTTP request
+        # Make the actual HTTP request with timeout
         response = requests.request(
             method=request.method,
             url=request.url,
             headers=dict(request.headers),
-            data=request.body
+            data=request.body,
+            timeout=self.timeout
         )
         
         # TODO: Handle error responses
@@ -190,29 +193,46 @@ class VirtualPoolCareAPI:
         try:
             # Step 1: Login and get credentials
             _LOGGER.debug("Logging into VirtualPoolCare...")
+            start_time = time.time()
             credentials = self.login_to_virtualpoolcare()
+            login_time = time.time() - start_time
+            _LOGGER.debug("Login completed in %.2fs", login_time)
             
             # Step 2: Get pools list
             _LOGGER.debug("Getting pools list...")
+            start_time = time.time()
             pool_info = self.get_pools_list(credentials)
+            pools_time = time.time() - start_time
+            _LOGGER.debug("Pools list retrieved in %.2fs", pools_time)
             
             # Step 3: Get measurements
             _LOGGER.debug("Getting pool measurements...")
+            start_time = time.time()
             measurements = self.get_pool_measurements(
                 credentials, 
                 pool_info["pool_id"], 
                 pool_info["blue_key"]
             )
+            measurements_time = time.time() - start_time
+            _LOGGER.debug("Measurements retrieved in %.2fs", measurements_time)
             
             # Step 4: Parse and return data
             _LOGGER.debug("Parsing measurement data...")
+            start_time = time.time()
             sensor_data = self.parse_measurements_data(measurements)
+            parse_time = time.time() - start_time
+            _LOGGER.debug("Data parsing completed in %.2fs", parse_time)
             
-            _LOGGER.debug("Successfully fetched VirtualPoolCare data: %s sensors", len(sensor_data))
+            total_time = login_time + pools_time + measurements_time + parse_time
+            _LOGGER.info("Successfully fetched VirtualPoolCare data: %s sensors in %.2fs (timeout: %ds)", 
+                        len(sensor_data), total_time, self.timeout)
             return sensor_data
             
         except Exception as e:
             _LOGGER.error("Error fetching VirtualPoolCare data: %s", str(e))
+            # Log more detail for timeout errors
+            if "timeout" in str(e).lower():
+                _LOGGER.error("API timeout after %ds - consider increasing api_timeout_seconds parameter", self.timeout)
             raise
 
 

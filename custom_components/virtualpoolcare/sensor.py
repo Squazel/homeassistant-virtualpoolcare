@@ -32,16 +32,21 @@ async def async_setup_entry(
     # Get the coordinator that was created in __init__.py
     coordinator = hass.data[DOMAIN][entry.entry_id]
     
-    # No need to call any refresh methods - coordinator already has data
-    # from async_config_entry_first_refresh() called in __init__.py
-    
+    # Create initial entities with expected sensor keys since coordinator starts with empty data
+    # These will populate when the background data fetch completes
     entities = []
-    if coordinator.data:
-        sensor_keys = VirtualPoolCareSensorData.get_sensor_keys(coordinator.data)
-        for key in sensor_keys:
-            entities.append(VirtualPoolCareSensor(coordinator, key))
+    expected_keys = {"temperature", "ph", "orp", "salinity"}  # Common sensor keys
     
+    for key in expected_keys:
+        entities.append(VirtualPoolCareSensor(coordinator, key))
+    
+    # Add entities without blocking on data
     async_add_entities(entities, update_before_add=False)
+    
+    # Register a listener to add additional entities when data arrives
+    coordinator.async_add_listener(
+        lambda: _add_new_virtualpoolcare_entities(hass, coordinator, async_add_entities)
+    )
 
 # Keep existing async_setup_platform for YAML compatibility
 async def async_setup_platform(
@@ -57,6 +62,7 @@ async def async_setup_platform(
     email = config.get("email")
     password = config.get("password")
     interval_hrs = config.get("update_interval_hours", SCAN_INTERVAL_HOURS)
+    timeout = config.get("api_timeout_seconds", 20)
     
     _LOGGER.debug("VirtualPoolCare: Config - email: %s, interval_hrs: %s", email[:5] + "***" if email else None, interval_hrs)
     
@@ -72,25 +78,26 @@ async def async_setup_platform(
         name=DOMAIN, 
         update_interval=update_interval,
         email=email,
-        password=password
+        password=password,
+        timeout=timeout
     )
     
-    # For YAML setup, use async_request_refresh instead
-    await coordinator.async_request_refresh()
+    # Don't wait for data during platform setup - this causes 10+ second delays
+    # Schedule a background refresh but don't block setup on it
+    coordinator.async_set_updated_data({})  # Initialize with empty data
+    hass.async_create_task(coordinator.async_request_refresh())
     
-    _LOGGER.debug("VirtualPoolCare: First refresh completed. Data available: %s", bool(coordinator.data))
-    if coordinator.data:
-        _LOGGER.debug("VirtualPoolCare: Data keys: %s", list(coordinator.data.keys()))
-
+    _LOGGER.debug("VirtualPoolCare: Platform setup complete. Background data fetch scheduled.")
+    
+    # Create initial entities without data - they will populate when data arrives
     entities = []
-    if coordinator.data:
-        sensor_keys = VirtualPoolCareSensorData.get_sensor_keys(coordinator.data)
-        _LOGGER.debug("VirtualPoolCare: Found %d sensor keys: %s", len(sensor_keys), sensor_keys)
-        
-        for key in sensor_keys:
-            entities.append(VirtualPoolCareSensor(coordinator, key))
-    else:
-        _LOGGER.warning("VirtualPoolCare: No data received from coordinator")
+    # Start with common sensor keys that we expect to receive
+    expected_keys = {"temperature", "ph", "orp", "salinity"}  
+    
+    for key in expected_keys:
+        entities.append(VirtualPoolCareSensor(coordinator, key))
+    
+    _LOGGER.debug("VirtualPoolCare: Created %d initial entities", len(entities))
     
     _LOGGER.debug("VirtualPoolCare: Adding %d entities to Home Assistant", len(entities))
     async_add_entities(entities, update_before_add=False)
@@ -106,40 +113,60 @@ async def async_setup_platform(
 
 def _add_new_virtualpoolcare_entities(hass, coordinator, async_add_entities):
     """Add entities if new keys appear in coordinator.data."""
+    if not coordinator.data:
+        return  # No data yet, skip
+        
     device_serial = coordinator.data.get("blue_device_serial", "unknown")
     
-    existing_keys = {
-        ent._key for ent in hass.data.get(f"{DOMAIN}_entities", [])
-        if hasattr(ent, '_device_serial') and ent._device_serial == device_serial
-    }
+    # Get existing sensor keys for this device
+    existing_keys = set()
+    entities_key = f"{DOMAIN}_entities"
+    if entities_key in hass.data:
+        existing_keys = {
+            ent._key for ent in hass.data[entities_key]
+            if hasattr(ent, '_device_serial') and ent._device_serial == device_serial
+        }
     
+    # Get all sensor keys from current data
     sensor_keys = VirtualPoolCareSensorData.get_sensor_keys(coordinator.data)
     new_keys = sensor_keys - existing_keys
     
     if new_keys:
+        _LOGGER.debug("VirtualPoolCare: Adding %d new entities: %s", len(new_keys), new_keys)
         new_entities = [VirtualPoolCareSensor(coordinator, key) for key in new_keys]
         async_add_entities(new_entities, update_before_add=False)
-        hass.data.setdefault(f"{DOMAIN}_entities", []).extend(new_entities)
+        hass.data.setdefault(entities_key, []).extend(new_entities)
 
 
 class VirtualPoolCareDataUpdateCoordinator(DataUpdateCoordinator):
     """Manages fetching data from virtualpoolcare.io every X hours."""
 
-    def __init__(self, hass: HomeAssistant, name: str, update_interval: timedelta, email: str, password: str):
+    def __init__(self, hass: HomeAssistant, name: str, update_interval: timedelta, email: str, password: str, timeout: int = 20):
         super().__init__(
             hass,
             _LOGGER,
             name=name,
             update_interval=update_interval,
         )
-        self.api = VirtualPoolCareAPI(email, password)
+        self.api = VirtualPoolCareAPI(email, password, timeout)
 
     async def _async_update_data(self) -> dict:
         """Fetch data from virtualpoolcare.io (runs in executor)."""
         try:
+            _LOGGER.debug("VirtualPoolCare: Starting background data fetch...")
+            start_time = dt_util.utcnow()
             result = await self.hass.async_add_executor_job(self.api.fetch_data)
+            end_time = dt_util.utcnow()
+            duration = (end_time - start_time).total_seconds()
+            
+            if duration > 10:
+                _LOGGER.warning("VirtualPoolCare: Data fetch took %.1fs (>10s) - this may cause HA update warnings", duration)
+            else:
+                _LOGGER.debug("VirtualPoolCare: Data fetch completed in %.1fs", duration)
+                
             return result
         except Exception as err:
+            _LOGGER.error("VirtualPoolCare: Error fetching data: %s", err)
             raise UpdateFailed(f"Error fetching VirtualPoolCare data: {err}") from err
 
 
@@ -151,7 +178,8 @@ class VirtualPoolCareSensor(SensorEntity):
         self._key = key
         
         # Get device serial from coordinator data for unique identification
-        device_serial = coordinator.data.get("blue_device_serial", "unknown")
+        # Handle case where coordinator starts with empty data
+        device_serial = coordinator.data.get("blue_device_serial", "unknown") if coordinator.data else "unknown"
         
         # Use core module to create IDs and names
         self._attr_unique_id = VirtualPoolCareSensorData.create_entity_id(device_serial, key)
@@ -291,6 +319,15 @@ class VirtualPoolCareSensor(SensorEntity):
     @callback
     def _handle_coordinator_update(self):
         """Write updated state back to HA when coordinator data changes."""
+        # Update device serial if we started with empty data
+        if self.coordinator.data and self._device_serial == "unknown":
+            device_serial = self.coordinator.data.get("blue_device_serial", "unknown")
+            if device_serial != "unknown":
+                self._device_serial = device_serial
+                # Update unique_id and name with real device serial
+                self._attr_unique_id = VirtualPoolCareSensorData.create_entity_id(device_serial, self._key)
+                self._attr_name = VirtualPoolCareSensorData.create_entity_name(device_serial, self._key)
+        
         # For timestamp accuracy, we could try setting state with custom timestamp
         # but HA's recorder will still use the write time
         self.async_write_ha_state()
