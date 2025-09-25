@@ -14,9 +14,10 @@ BASE_URL = "https://vpc.virtualpoolcare.io/prod"
 class VirtualPoolCareAPI:
     """Core API client for VirtualPoolCare without Home Assistant dependencies."""
     
-    def __init__(self, email: str, password: str):
+    def __init__(self, email: str, password: str, timeout: int = 30):
         self.email = email
         self.password = password
+        self.timeout = timeout  # Default 30 second timeout
     
     def login_to_virtualpoolcare(self) -> dict:
         """
@@ -33,8 +34,8 @@ class VirtualPoolCareAPI:
             "password": self.password
         }
         
-        # TODO: Handle error responses (401, 403, 500, etc.)
-        response = requests.post(login_url, json=login_data)
+        # Add timeout to prevent long delays
+        response = requests.post(login_url, json=login_data, timeout=self.timeout)
         response.raise_for_status()
         
         json_data = response.json()
@@ -81,12 +82,13 @@ class VirtualPoolCareAPI:
         # Sign the request
         SigV4Auth(session.get_credentials(), "execute-api", credentials["region"]).add_auth(request)
         
-        # Make the actual HTTP request
+        # Make the actual HTTP request with timeout
         response = requests.request(
             method=request.method,
             url=request.url,
             headers=dict(request.headers),
-            data=request.body
+            data=request.body,
+            timeout=self.timeout
         )
         
         # TODO: Handle error responses

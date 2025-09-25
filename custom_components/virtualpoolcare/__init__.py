@@ -82,12 +82,14 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         name=DOMAIN, 
         update_interval=update_interval,
         email=email,
-        password=password
+        password=password,
+        timeout=20  # 20 second timeout for config entry setup
     )
     
-    # THIS is where async_config_entry_first_refresh should be called
-    # The config entry is still in SETUP_IN_PROGRESS state here
-    await coordinator.async_config_entry_first_refresh()
+    # Don't block setup on first refresh - this causes 10+ second delays
+    # Initialize with empty data and schedule background refresh
+    coordinator.async_set_updated_data({})
+    hass.async_create_task(coordinator.async_config_entry_first_refresh())
     
     # Store coordinator for the sensor platform to use
     hass.data.setdefault(DOMAIN, {})
