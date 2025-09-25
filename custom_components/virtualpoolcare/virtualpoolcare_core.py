@@ -2,6 +2,7 @@
 import logging
 import json
 import random
+import time
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -192,29 +193,46 @@ class VirtualPoolCareAPI:
         try:
             # Step 1: Login and get credentials
             _LOGGER.debug("Logging into VirtualPoolCare...")
+            start_time = time.time()
             credentials = self.login_to_virtualpoolcare()
+            login_time = time.time() - start_time
+            _LOGGER.debug("Login completed in %.2fs", login_time)
             
             # Step 2: Get pools list
             _LOGGER.debug("Getting pools list...")
+            start_time = time.time()
             pool_info = self.get_pools_list(credentials)
+            pools_time = time.time() - start_time
+            _LOGGER.debug("Pools list retrieved in %.2fs", pools_time)
             
             # Step 3: Get measurements
             _LOGGER.debug("Getting pool measurements...")
+            start_time = time.time()
             measurements = self.get_pool_measurements(
                 credentials, 
                 pool_info["pool_id"], 
                 pool_info["blue_key"]
             )
+            measurements_time = time.time() - start_time
+            _LOGGER.debug("Measurements retrieved in %.2fs", measurements_time)
             
             # Step 4: Parse and return data
             _LOGGER.debug("Parsing measurement data...")
+            start_time = time.time()
             sensor_data = self.parse_measurements_data(measurements)
+            parse_time = time.time() - start_time
+            _LOGGER.debug("Data parsing completed in %.2fs", parse_time)
             
-            _LOGGER.debug("Successfully fetched VirtualPoolCare data: %s sensors", len(sensor_data))
+            total_time = login_time + pools_time + measurements_time + parse_time
+            _LOGGER.info("Successfully fetched VirtualPoolCare data: %s sensors in %.2fs", 
+                        len(sensor_data), total_time)
             return sensor_data
             
         except Exception as e:
             _LOGGER.error("Error fetching VirtualPoolCare data: %s", str(e))
+            # Log more detail for timeout errors
+            if "timeout" in str(e).lower():
+                _LOGGER.error("API timeout after %ds - consider increasing timeout parameter", self.timeout)
             raise
 
 

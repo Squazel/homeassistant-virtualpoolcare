@@ -62,6 +62,7 @@ async def async_setup_platform(
     email = config.get("email")
     password = config.get("password")
     interval_hrs = config.get("update_interval_hours", SCAN_INTERVAL_HOURS)
+    timeout = config.get("api_timeout_seconds", 20)
     
     _LOGGER.debug("VirtualPoolCare: Config - email: %s, interval_hrs: %s", email[:5] + "***" if email else None, interval_hrs)
     
@@ -78,7 +79,7 @@ async def async_setup_platform(
         update_interval=update_interval,
         email=email,
         password=password,
-        timeout=20  # 20 second timeout for YAML setup
+        timeout=timeout
     )
     
     # Don't wait for data during platform setup - this causes 10+ second delays
@@ -152,9 +153,20 @@ class VirtualPoolCareDataUpdateCoordinator(DataUpdateCoordinator):
     async def _async_update_data(self) -> dict:
         """Fetch data from virtualpoolcare.io (runs in executor)."""
         try:
+            _LOGGER.debug("VirtualPoolCare: Starting background data fetch...")
+            start_time = dt_util.utcnow()
             result = await self.hass.async_add_executor_job(self.api.fetch_data)
+            end_time = dt_util.utcnow()
+            duration = (end_time - start_time).total_seconds()
+            
+            if duration > 10:
+                _LOGGER.warning("VirtualPoolCare: Data fetch took %.1fs (>10s)", duration)
+            else:
+                _LOGGER.debug("VirtualPoolCare: Data fetch completed in %.1fs", duration)
+                
             return result
         except Exception as err:
+            _LOGGER.error("VirtualPoolCare: Error fetching data: %s", err)
             raise UpdateFailed(f"Error fetching VirtualPoolCare data: {err}") from err
 
 
