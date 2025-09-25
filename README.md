@@ -43,7 +43,7 @@ sensor:
     email: "your_email@example.com"       # Required: Your VirtualPoolCare login email
     password: "your_password"             # Required: Your VirtualPoolCare password
     update_interval_hours: 4              # Optional: How often to fetch data (default: 6 hours)
-    api_timeout_seconds: 30               # Optional: API timeout in seconds (default: 20)
+    api_timeout_seconds: 30               # Optional: Network timeout (default: 20s, only change if needed)
 ```
 
 **3.** Restart Home Assistant again.
@@ -65,7 +65,7 @@ Where `0A2B3C4D` is your Blue Riiot device serial number.
 | email | string | - | **Yes** | Your VirtualPoolCare.io login email |
 | password | string | - | **Yes** | Your VirtualPoolCare.io login password |
 | update_interval_hours | number | 6 | No | How often (in hours) to fetch data from VirtualPoolCare |
-| api_timeout_seconds | number | 20 | No | Timeout for API calls in seconds (increase if seeing timeout errors) |
+| api_timeout_seconds | number | 20 | No | Network timeout for API calls (prevents indefinite hangs) |
 
 ## Security Note
 

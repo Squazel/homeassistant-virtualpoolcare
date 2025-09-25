@@ -160,7 +160,7 @@ class VirtualPoolCareDataUpdateCoordinator(DataUpdateCoordinator):
             duration = (end_time - start_time).total_seconds()
             
             if duration > 10:
-                _LOGGER.warning("VirtualPoolCare: Data fetch took %.1fs (>10s)", duration)
+                _LOGGER.warning("VirtualPoolCare: Data fetch took %.1fs (>10s) - this may cause HA update warnings", duration)
             else:
                 _LOGGER.debug("VirtualPoolCare: Data fetch completed in %.1fs", duration)
                 

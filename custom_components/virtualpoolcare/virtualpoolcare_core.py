@@ -15,10 +15,10 @@ BASE_URL = "https://vpc.virtualpoolcare.io/prod"
 class VirtualPoolCareAPI:
     """Core API client for VirtualPoolCare without Home Assistant dependencies."""
     
-    def __init__(self, email: str, password: str, timeout: int = 30):
+    def __init__(self, email: str, password: str, timeout: int = 20):
         self.email = email
         self.password = password
-        self.timeout = timeout  # Default 30 second timeout
+        self.timeout = timeout  # Default 20 second timeout
     
     def login_to_virtualpoolcare(self) -> dict:
         """
@@ -224,15 +224,15 @@ class VirtualPoolCareAPI:
             _LOGGER.debug("Data parsing completed in %.2fs", parse_time)
             
             total_time = login_time + pools_time + measurements_time + parse_time
-            _LOGGER.info("Successfully fetched VirtualPoolCare data: %s sensors in %.2fs", 
-                        len(sensor_data), total_time)
+            _LOGGER.info("Successfully fetched VirtualPoolCare data: %s sensors in %.2fs (timeout: %ds)", 
+                        len(sensor_data), total_time, self.timeout)
             return sensor_data
             
         except Exception as e:
             _LOGGER.error("Error fetching VirtualPoolCare data: %s", str(e))
             # Log more detail for timeout errors
             if "timeout" in str(e).lower():
-                _LOGGER.error("API timeout after %ds - consider increasing timeout parameter", self.timeout)
+                _LOGGER.error("API timeout after %ds - consider increasing api_timeout_seconds parameter", self.timeout)
             raise
 
 
