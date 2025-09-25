@@ -141,7 +141,7 @@ def _add_new_virtualpoolcare_entities(hass, coordinator, async_add_entities):
 class VirtualPoolCareDataUpdateCoordinator(DataUpdateCoordinator):
     """Manages fetching data from virtualpoolcare.io every X hours."""
 
-    def __init__(self, hass: HomeAssistant, name: str, update_interval: timedelta, email: str, password: str, timeout: int = 30):
+    def __init__(self, hass: HomeAssistant, name: str, update_interval: timedelta, email: str, password: str, timeout: int = 20):
         super().__init__(
             hass,
             _LOGGER,

@@ -43,7 +43,7 @@ sensor:
     email: "your_email@example.com"       # Required: Your VirtualPoolCare login email
     password: "your_password"             # Required: Your VirtualPoolCare password
     update_interval_hours: 4              # Optional: How often to fetch data (default: 6 hours)
-    api_timeout_seconds: 30               # Optional: Network timeout (default: 20s, only change if needed)
+    api_timeout_seconds: 25               # Optional: Network timeout (default: 20s, only change if needed)
 ```
 
 **3.** Restart Home Assistant again.
