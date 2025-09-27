@@ -109,13 +109,33 @@ async def async_setup_platform(
     
     _LOGGER.debug("VirtualPoolCare: Platform setup complete. Background data fetch scheduled.")
     
-    # Create initial entities without data - they will populate when data arrives
+    # We need to fetch device serial before creating entities, similar to config entry path
+    # Try to get it from coordinator data first, then fetch if necessary
+    device_serial = None
+    if coordinator.data:
+        device_serial = coordinator.data.get("blue_device_serial")
+    
+    if not device_serial:
+        _LOGGER.info("VirtualPoolCare: Device serial not available, fetching from API...")
+        try:
+            await coordinator.async_request_refresh()
+            if coordinator.data and coordinator.data.get("blue_device_serial"):
+                device_serial = coordinator.data["blue_device_serial"]
+                _LOGGER.info("VirtualPoolCare: Retrieved device serial from API: %s", device_serial)
+            else:
+                _LOGGER.error("VirtualPoolCare: Failed to retrieve device serial from API. Cannot create entities.")
+                return
+        except Exception as e:
+            _LOGGER.error("VirtualPoolCare: Error fetching device serial: %s. Cannot create entities.", e)
+            return
+    
+    # Create initial entities with device serial - they will populate when data arrives
     entities = []
     # Start with common sensor keys that we expect to receive
     expected_keys = {"temperature", "ph", "orp", "salinity"}  
     
     for key in expected_keys:
-        entities.append(VirtualPoolCareSensor(coordinator, key))
+        entities.append(VirtualPoolCareSensor(coordinator, key, device_serial))
     
     _LOGGER.debug("VirtualPoolCare: Created %d initial entities", len(entities))
     
@@ -127,7 +147,7 @@ async def async_setup_platform(
 
     # Register a listener to add new entities dynamically if keys change
     coordinator.async_add_listener(
-        lambda: _add_new_virtualpoolcare_entities(hass, coordinator, async_add_entities)
+        lambda: _add_new_virtualpoolcare_entities(hass, coordinator, async_add_entities, device_serial)
     )
 
 
