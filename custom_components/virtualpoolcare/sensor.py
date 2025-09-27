@@ -33,7 +33,26 @@ async def async_setup_entry(
     coordinator = hass.data[DOMAIN][entry.entry_id]
     
     # Get device serial from config entry data (stored during config flow)
-    device_serial = entry.data.get("device_serial", "unknown")
+    device_serial = entry.data.get("device_serial")
+    
+    # Protection: Never create entities with "unknown" device serial
+    # If device_serial is not in config entry data, fetch it first
+    if not device_serial or device_serial == "unknown":
+        _LOGGER.info("VirtualPoolCare: Device serial not found in config entry, fetching from API...")
+        try:
+            # Fetch device serial from API for existing config entries
+            await coordinator.async_request_refresh()
+            if coordinator.data and coordinator.data.get("blue_device_serial"):
+                device_serial = coordinator.data["blue_device_serial"]
+                _LOGGER.info("VirtualPoolCare: Retrieved device serial from API: %s", device_serial)
+            else:
+                _LOGGER.error("VirtualPoolCare: Failed to retrieve device serial from API. Cannot create entities.")
+                return
+        except Exception as e:
+            _LOGGER.error("VirtualPoolCare: Error fetching device serial: %s. Cannot create entities.", e)
+            return
+    
+    _LOGGER.info("VirtualPoolCare: Creating entities with device serial: %s", device_serial)
     
     # Create initial entities with expected sensor keys since coordinator starts with empty data
     # These will populate when the background data fetch completes
@@ -183,11 +202,15 @@ class VirtualPoolCareSensor(SensorEntity):
         self._key = key
         
         # Use provided device_serial or get from coordinator data for backward compatibility
-        if device_serial is not None:
+        if device_serial is not None and device_serial != "unknown":
             self._device_serial = device_serial
         else:
             # Handle case where coordinator starts with empty data (legacy behavior)
             self._device_serial = coordinator.data.get("blue_device_serial", "unknown") if coordinator.data else "unknown"
+        
+        # Final protection: Log warning if we're still creating entity with "unknown"
+        if self._device_serial == "unknown":
+            _LOGGER.warning("VirtualPoolCare: Creating entity %s with 'unknown' device serial. This should not happen with new config entries.", key)
         
         # Use core module to create IDs and names
         self._attr_unique_id = VirtualPoolCareSensorData.create_entity_id(self._device_serial, key)
