@@ -82,8 +82,20 @@ class TestVirtualPoolCareSensor(unittest.TestCase):
     def test_sensor_initialization(self):
         """Test sensor is initialized correctly."""
         self.assertEqual(self.sensor._key, "water_temperature")
-        self.assertEqual(self.sensor._attr_unique_id, f"{DOMAIN}_water_temperature")
-        self.assertEqual(self.sensor._attr_name, f"{DOMAIN} water_temperature")
+        # Without device_serial in coordinator data, it should default to "unknown"
+        self.assertEqual(self.sensor._attr_unique_id, f"{DOMAIN}_unknown_water_temperature")
+        self.assertEqual(self.sensor._attr_name, f"{DOMAIN} unknown water_temperature")
+        
+    def test_sensor_initialization_with_device_serial(self):
+        """Test sensor is initialized correctly when device_serial is provided."""
+        # Test the new behavior with device_serial parameter
+        device_serial = "1A2B3C4D"
+        sensor = VirtualPoolCareSensor(self.mock_coordinator, "water_temperature", device_serial)
+        
+        self.assertEqual(sensor._key, "water_temperature")
+        self.assertEqual(sensor._device_serial, device_serial)
+        self.assertEqual(sensor._attr_unique_id, f"{DOMAIN}_{device_serial}_water_temperature")
+        self.assertEqual(sensor._attr_name, f"{DOMAIN} {device_serial} water_temperature")
 
     def test_sensor_state(self):
         """Test sensor returns correct state."""
