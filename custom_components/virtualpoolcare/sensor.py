@@ -35,31 +35,20 @@ async def async_setup_entry(
     # Get device serial from config entry data (stored during config flow)
     device_serial = entry.data.get("device_serial")
     
-    # If device_serial is not in config entry data (legacy configs), try to fetch it from API
+    # If device_serial is not in config entry data (legacy configs), fetch it first
     if not device_serial:
         _LOGGER.info("VirtualPoolCare: Device serial not found in config entry, fetching from API...")
         try:
             await coordinator.async_request_refresh()
-            _LOGGER.debug("VirtualPoolCare: API call completed, checking coordinator.data...")
-            if coordinator.data:
-                _LOGGER.debug("VirtualPoolCare: Coordinator data keys: %s", list(coordinator.data.keys()))
-                device_serial = coordinator.data.get("blue_device_serial")
-                if device_serial:
-                    _LOGGER.info("VirtualPoolCare: Retrieved device serial from API: %s", device_serial)
-                else:
-                    _LOGGER.warning("VirtualPoolCare: API call succeeded but no device serial in response")
+            if coordinator.data and coordinator.data.get("blue_device_serial"):
+                device_serial = coordinator.data["blue_device_serial"]
+                _LOGGER.info("VirtualPoolCare: Retrieved device serial from API: %s", device_serial)
             else:
-                _LOGGER.warning("VirtualPoolCare: API call completed but coordinator.data is empty/None")
+                _LOGGER.error("VirtualPoolCare: Failed to retrieve device serial from API. Cannot create entities.")
+                return
         except Exception as e:
-            _LOGGER.warning("VirtualPoolCare: Error fetching device serial from API: %s", e)
-        
-        # If we still don't have device_serial, create a stable fallback based on entry data
-        if not device_serial:
-            # Use a hash of the email to create a stable identifier
-            import hashlib
-            email = entry.data.get("email", "unknown")
-            device_serial = hashlib.md5(email.encode()).hexdigest()[:8].upper()
-            _LOGGER.info("VirtualPoolCare: Using fallback device serial based on account: %s", device_serial)
+            _LOGGER.error("VirtualPoolCare: Error fetching device serial: %s. Cannot create entities.", e)
+            return
     
     _LOGGER.info("VirtualPoolCare: Creating entities with device serial: %s", device_serial)
     
@@ -113,34 +102,32 @@ async def async_setup_platform(
         timeout=timeout
     )
     
-    # Initialize coordinator with empty data first
-    coordinator.async_set_updated_data({})
+    # Don't wait for data during platform setup - this causes 10+ second delays
+    # Schedule a background refresh but don't block setup on it
+    coordinator.async_set_updated_data({})  # Initialize with empty data
+    hass.async_create_task(coordinator.async_request_refresh())
     
-    # Try to fetch device serial from API - this is needed to create entities
+    _LOGGER.debug("VirtualPoolCare: Platform setup complete. Background data fetch scheduled.")
+    
+    # We need to fetch device serial before creating entities, similar to config entry path
+    # Try to get it from coordinator data first, then fetch if necessary
     device_serial = None
-    _LOGGER.info("VirtualPoolCare: Fetching device serial from API...")
-    try:
-        await coordinator.async_request_refresh()
-        _LOGGER.debug("VirtualPoolCare: API call completed, checking coordinator.data...")
-        if coordinator.data:
-            _LOGGER.debug("VirtualPoolCare: Coordinator data keys: %s", list(coordinator.data.keys()))
-            device_serial = coordinator.data.get("blue_device_serial")
-            if device_serial:
+    if coordinator.data:
+        device_serial = coordinator.data.get("blue_device_serial")
+    
+    if not device_serial:
+        _LOGGER.info("VirtualPoolCare: Device serial not available, fetching from API...")
+        try:
+            await coordinator.async_request_refresh()
+            if coordinator.data and coordinator.data.get("blue_device_serial"):
+                device_serial = coordinator.data["blue_device_serial"]
                 _LOGGER.info("VirtualPoolCare: Retrieved device serial from API: %s", device_serial)
             else:
-                _LOGGER.warning("VirtualPoolCare: API call succeeded but no device serial in response")
-        else:
-            _LOGGER.warning("VirtualPoolCare: API call completed but coordinator.data is empty/None")
-    except Exception as e:
-        _LOGGER.warning("VirtualPoolCare: Error fetching device serial from API: %s", e) 
-    
-    # If we still don't have device_serial, create a stable fallback
-    if not device_serial:
-        # For YAML config, we can use email+password hash as stable identifier
-        import hashlib
-        config_str = f"{email}:{password}"
-        device_serial = hashlib.md5(config_str.encode()).hexdigest()[:8].upper()
-        _LOGGER.info("VirtualPoolCare: Using fallback device serial based on config: %s", device_serial)
+                _LOGGER.error("VirtualPoolCare: Failed to retrieve device serial from API. Cannot create entities.")
+                return
+        except Exception as e:
+            _LOGGER.error("VirtualPoolCare: Error fetching device serial: %s. Cannot create entities.", e)
+            return
     
     # Create initial entities with device serial - they will populate when data arrives
     entities = []
