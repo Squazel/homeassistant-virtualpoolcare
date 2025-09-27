@@ -73,7 +73,8 @@ class TestVirtualPoolCareSensor(unittest.TestCase):
         self.mock_coordinator.data = {
             "water_temperature": 78.5,
             "pH_level": 7.2,
-            "chlorine_ppm": 1.5
+            "chlorine_ppm": 1.5,
+            "blue_device_serial": "TEST123"  # Add device serial to coordinator data
         }
         # Add the available property that the sensor checks
         self.mock_coordinator.last_update_success = True
@@ -82,9 +83,9 @@ class TestVirtualPoolCareSensor(unittest.TestCase):
     def test_sensor_initialization(self):
         """Test sensor is initialized correctly."""
         self.assertEqual(self.sensor._key, "water_temperature")
-        # Without device_serial in coordinator data, it should default to "unknown"
-        self.assertEqual(self.sensor._attr_unique_id, f"{DOMAIN}_unknown_water_temperature")
-        self.assertEqual(self.sensor._attr_name, f"{DOMAIN} unknown water_temperature")
+        # With device_serial in coordinator data, it should use that value
+        self.assertEqual(self.sensor._attr_unique_id, f"{DOMAIN}_TEST123_water_temperature")
+        self.assertEqual(self.sensor._attr_name, f"{DOMAIN} TEST123 water_temperature")
         
     def test_sensor_initialization_with_device_serial(self):
         """Test sensor is initialized correctly when device_serial is provided."""
@@ -96,6 +97,24 @@ class TestVirtualPoolCareSensor(unittest.TestCase):
         self.assertEqual(sensor._device_serial, device_serial)
         self.assertEqual(sensor._attr_unique_id, f"{DOMAIN}_{device_serial}_water_temperature")
         self.assertEqual(sensor._attr_name, f"{DOMAIN} {device_serial} water_temperature")
+
+    def test_sensor_initialization_without_device_serial_raises_error(self):
+        """Test sensor raises ValueError when no device_serial is available."""
+        # Create coordinator without device_serial in data
+        mock_coordinator = Mock()
+        mock_coordinator.data = {
+            "water_temperature": 78.5,
+            "pH_level": 7.2,
+            "chlorine_ppm": 1.5
+            # No blue_device_serial here
+        }
+        
+        # Should raise ValueError when no device_serial available
+        with self.assertRaises(ValueError) as context:
+            VirtualPoolCareSensor(mock_coordinator, "water_temperature")
+        
+        self.assertIn("Cannot create VirtualPoolCare sensor", str(context.exception))
+        self.assertIn("without device serial", str(context.exception))
 
     def test_sensor_state(self):
         """Test sensor returns correct state."""
