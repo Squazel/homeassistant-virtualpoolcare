@@ -83,7 +83,11 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 await self.async_set_unique_id(info["device_serial"])
                 self._abort_if_unique_id_configured()
                 
-                return self.async_create_entry(title=info["title"], data=user_input)
+                # Store device_serial in config entry data for use during setup
+                config_data = user_input.copy()
+                config_data["device_serial"] = info["device_serial"]
+                
+                return self.async_create_entry(title=info["title"], data=config_data)
 
         return self.async_show_form(
             step_id="user", data_schema=STEP_USER_DATA_SCHEMA, errors=errors
