@@ -32,20 +32,23 @@ async def async_setup_entry(
     # Get the coordinator that was created in __init__.py
     coordinator = hass.data[DOMAIN][entry.entry_id]
     
+    # Get device serial from config entry data (stored during config flow)
+    device_serial = entry.data.get("device_serial", "unknown")
+    
     # Create initial entities with expected sensor keys since coordinator starts with empty data
     # These will populate when the background data fetch completes
     entities = []
     expected_keys = {"temperature", "ph", "orp", "salinity"}  # Common sensor keys
     
     for key in expected_keys:
-        entities.append(VirtualPoolCareSensor(coordinator, key))
+        entities.append(VirtualPoolCareSensor(coordinator, key, device_serial))
     
     # Add entities without blocking on data
     async_add_entities(entities, update_before_add=False)
     
     # Register a listener to add additional entities when data arrives
     coordinator.async_add_listener(
-        lambda: _add_new_virtualpoolcare_entities(hass, coordinator, async_add_entities)
+        lambda: _add_new_virtualpoolcare_entities(hass, coordinator, async_add_entities, device_serial)
     )
 
 # Keep existing async_setup_platform for YAML compatibility
@@ -111,12 +114,14 @@ async def async_setup_platform(
     )
 
 
-def _add_new_virtualpoolcare_entities(hass, coordinator, async_add_entities):
+def _add_new_virtualpoolcare_entities(hass, coordinator, async_add_entities, device_serial=None):
     """Add entities if new keys appear in coordinator.data."""
     if not coordinator.data:
         return  # No data yet, skip
         
-    device_serial = coordinator.data.get("blue_device_serial", "unknown")
+    # Use provided device_serial or fall back to data (for backward compatibility)
+    if device_serial is None:
+        device_serial = coordinator.data.get("blue_device_serial", "unknown")
     
     # Get existing sensor keys for this device
     existing_keys = set()
@@ -133,7 +138,7 @@ def _add_new_virtualpoolcare_entities(hass, coordinator, async_add_entities):
     
     if new_keys:
         _LOGGER.debug("VirtualPoolCare: Adding %d new entities: %s", len(new_keys), new_keys)
-        new_entities = [VirtualPoolCareSensor(coordinator, key) for key in new_keys]
+        new_entities = [VirtualPoolCareSensor(coordinator, key, device_serial) for key in new_keys]
         async_add_entities(new_entities, update_before_add=False)
         hass.data.setdefault(entities_key, []).extend(new_entities)
 
@@ -173,20 +178,20 @@ class VirtualPoolCareDataUpdateCoordinator(DataUpdateCoordinator):
 class VirtualPoolCareSensor(SensorEntity):
     """Representation of a single VirtualPoolCare sensor."""
 
-    def __init__(self, coordinator: VirtualPoolCareDataUpdateCoordinator, key: str):
+    def __init__(self, coordinator: VirtualPoolCareDataUpdateCoordinator, key: str, device_serial: str = None):
         self.coordinator = coordinator
         self._key = key
         
-        # Get device serial from coordinator data for unique identification
-        # Handle case where coordinator starts with empty data
-        device_serial = coordinator.data.get("blue_device_serial", "unknown") if coordinator.data else "unknown"
+        # Use provided device_serial or get from coordinator data for backward compatibility
+        if device_serial is not None:
+            self._device_serial = device_serial
+        else:
+            # Handle case where coordinator starts with empty data (legacy behavior)
+            self._device_serial = coordinator.data.get("blue_device_serial", "unknown") if coordinator.data else "unknown"
         
         # Use core module to create IDs and names
-        self._attr_unique_id = VirtualPoolCareSensorData.create_entity_id(device_serial, key)
-        self._attr_name = VirtualPoolCareSensorData.create_entity_name(device_serial, key)
-        
-        # Store device serial for use in device_info
-        self._device_serial = device_serial
+        self._attr_unique_id = VirtualPoolCareSensorData.create_entity_id(self._device_serial, key)
+        self._attr_name = VirtualPoolCareSensorData.create_entity_name(self._device_serial, key)
         
         # Set state class for historical data
         if key in ["temperature", "ph", "orp", "salinity", "chlorine_ppm", "chlorine", "tds", "conductivity"]:
@@ -319,15 +324,6 @@ class VirtualPoolCareSensor(SensorEntity):
     @callback
     def _handle_coordinator_update(self):
         """Write updated state back to HA when coordinator data changes."""
-        # Update device serial if we started with empty data
-        if self.coordinator.data and self._device_serial == "unknown":
-            device_serial = self.coordinator.data.get("blue_device_serial", "unknown")
-            if device_serial != "unknown":
-                self._device_serial = device_serial
-                # Update unique_id and name with real device serial
-                self._attr_unique_id = VirtualPoolCareSensorData.create_entity_id(device_serial, self._key)
-                self._attr_name = VirtualPoolCareSensorData.create_entity_name(device_serial, self._key)
-        
         # For timestamp accuracy, we could try setting state with custom timestamp
         # but HA's recorder will still use the write time
         self.async_write_ha_state()
