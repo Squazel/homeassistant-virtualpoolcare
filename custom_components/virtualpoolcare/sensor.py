@@ -168,7 +168,7 @@ def _add_new_virtualpoolcare_entities(hass, coordinator, async_add_entities, dev
     if device_serial is None:
         device_serial = coordinator.data.get("blue_device_serial")
         if not device_serial:
-            _LOGGER.error("VirtualPoolCare: Cannot add new entities without device serial")
+            _LOGGER.warning("VirtualPoolCare: Cannot add new entities without device serial, skipping")
             return
     
     # Get existing sensor keys for this device
