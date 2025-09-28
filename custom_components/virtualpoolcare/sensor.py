@@ -40,10 +40,18 @@ async def async_setup_entry(
         _LOGGER.info("VirtualPoolCare: Device serial not found in config entry, fetching from API...")
         try:
             await coordinator.async_request_refresh()
+            _LOGGER.debug("VirtualPoolCare: API call completed. Coordinator data keys: %s", 
+                         list(coordinator.data.keys()) if coordinator.data else "None")
+            
             if coordinator.data and coordinator.data.get("blue_device_serial"):
                 device_serial = coordinator.data["blue_device_serial"]
                 _LOGGER.info("VirtualPoolCare: Retrieved device serial from API: %s", device_serial)
             else:
+                if coordinator.data:
+                    _LOGGER.error("VirtualPoolCare: API call succeeded but no 'blue_device_serial' in response. Available keys: %s", 
+                                 list(coordinator.data.keys()))
+                else:
+                    _LOGGER.error("VirtualPoolCare: API call completed but coordinator.data is None/empty")
                 _LOGGER.error("VirtualPoolCare: Failed to retrieve device serial from API. Cannot create entities.")
                 return
         except Exception as e:
@@ -102,32 +110,32 @@ async def async_setup_platform(
         timeout=timeout
     )
     
-    # Don't wait for data during platform setup - this causes 10+ second delays
-    # Schedule a background refresh but don't block setup on it
-    coordinator.async_set_updated_data({})  # Initialize with empty data
-    hass.async_create_task(coordinator.async_request_refresh())
+    # Don't schedule background refresh during setup to avoid race conditions
+    # Initialize coordinator with empty data first, then fetch device serial synchronously
+    coordinator.async_set_updated_data({})
     
-    _LOGGER.debug("VirtualPoolCare: Platform setup complete. Background data fetch scheduled.")
-    
-    # We need to fetch device serial before creating entities, similar to config entry path
-    # Try to get it from coordinator data first, then fetch if necessary
+    # We need to fetch device serial before creating entities
     device_serial = None
-    if coordinator.data:
-        device_serial = coordinator.data.get("blue_device_serial")
-    
-    if not device_serial:
-        _LOGGER.info("VirtualPoolCare: Device serial not available, fetching from API...")
-        try:
-            await coordinator.async_request_refresh()
-            if coordinator.data and coordinator.data.get("blue_device_serial"):
-                device_serial = coordinator.data["blue_device_serial"]
-                _LOGGER.info("VirtualPoolCare: Retrieved device serial from API: %s", device_serial)
+    _LOGGER.info("VirtualPoolCare: Fetching device serial from API...")
+    try:
+        await coordinator.async_request_refresh()
+        _LOGGER.debug("VirtualPoolCare: API call completed. Coordinator data keys: %s", 
+                     list(coordinator.data.keys()) if coordinator.data else "None")
+        
+        if coordinator.data and coordinator.data.get("blue_device_serial"):
+            device_serial = coordinator.data["blue_device_serial"]
+            _LOGGER.info("VirtualPoolCare: Retrieved device serial from API: %s", device_serial)
+        else:
+            if coordinator.data:
+                _LOGGER.error("VirtualPoolCare: API call succeeded but no 'blue_device_serial' in response. Available keys: %s", 
+                             list(coordinator.data.keys()))
             else:
-                _LOGGER.error("VirtualPoolCare: Failed to retrieve device serial from API. Cannot create entities.")
-                return
-        except Exception as e:
-            _LOGGER.error("VirtualPoolCare: Error fetching device serial: %s. Cannot create entities.", e)
+                _LOGGER.error("VirtualPoolCare: API call completed but coordinator.data is None/empty")
+            _LOGGER.error("VirtualPoolCare: Failed to retrieve device serial from API. Cannot create entities.")
             return
+    except Exception as e:
+        _LOGGER.error("VirtualPoolCare: Error fetching device serial: %s. Cannot create entities.", e)
+        return
     
     # Create initial entities with device serial - they will populate when data arrives
     entities = []
