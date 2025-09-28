@@ -119,27 +119,13 @@ async def async_setup_platform(
     hass.data.setdefault(DOMAIN, {})
     hass.data[DOMAIN]["yaml_coordinator"] = coordinator
     
-    # Create initial entities with placeholder device serial - they will get proper serial when data arrives
-    # Use a placeholder serial that will be updated when real data arrives
-    placeholder_device_serial = "pending"
-    entities = []
-    # Start with common sensor keys that we expect to receive
-    expected_keys = {"temperature", "ph", "orp", "salinity"}  
+    # Don't create any entities during setup - let the coordinator update handle entity creation
+    # This ensures we only create entities when we have real data with device serial
+    _LOGGER.debug("VirtualPoolCare: Platform setup completed. Entities will be created when data arrives.")
     
-    for key in expected_keys:
-        entities.append(VirtualPoolCareSensor(coordinator, key, placeholder_device_serial))
-    
-    _LOGGER.debug("VirtualPoolCare: Created %d initial entities with placeholder serial", len(entities))
-    
-    _LOGGER.debug("VirtualPoolCare: Adding %d entities to Home Assistant", len(entities))
-    async_add_entities(entities, update_before_add=False)
-
-    # Store entities for dynamic addition
-    hass.data.setdefault(f"{DOMAIN}_entities", []).extend(entities)
-
-    # Register a listener to add new entities dynamically and update device serials
+    # Register a listener to create entities when data becomes available
     coordinator.async_add_listener(
-        lambda: _add_new_virtualpoolcare_entities(hass, coordinator, async_add_entities, placeholder_device_serial)
+        lambda: _add_new_virtualpoolcare_entities(hass, coordinator, async_add_entities, None)
     )
 
 
@@ -148,26 +134,15 @@ def _add_new_virtualpoolcare_entities(hass, coordinator, async_add_entities, dev
     if not coordinator.data:
         return  # No data yet, skip
         
-    # Use provided device_serial or get from coordinator data (for backward compatibility)
+    # Get device serial from coordinator data
     actual_device_serial = coordinator.data.get("blue_device_serial")
     if not actual_device_serial:
         _LOGGER.warning("VirtualPoolCare: Cannot add new entities without device serial, skipping")
         return
     
-    # Update existing entities if they were created with a placeholder device serial
-    entities_key = f"{DOMAIN}_entities"
-    if entities_key in hass.data:
-        for entity in hass.data[entities_key]:
-            if hasattr(entity, '_device_serial') and entity._device_serial == "pending":
-                _LOGGER.debug("VirtualPoolCare: Updating entity %s device serial from 'pending' to %s", 
-                             entity._attr_name, actual_device_serial)
-                entity._device_serial = actual_device_serial
-                # Update the entity ID and name with the real device serial
-                entity._attr_unique_id = VirtualPoolCareSensorData.create_entity_id(actual_device_serial, entity._key)
-                entity._attr_name = VirtualPoolCareSensorData.create_entity_name(actual_device_serial, entity._key)
-    
-    # Get existing sensor keys for this device (including updated ones)
+    # Get existing sensor keys for this device
     existing_keys = set()
+    entities_key = f"{DOMAIN}_entities"
     if entities_key in hass.data:
         existing_keys = {
             ent._key for ent in hass.data[entities_key]
@@ -231,10 +206,9 @@ class VirtualPoolCareSensor(SensorEntity):
             # Handle case where coordinator starts with empty data (legacy behavior)
             self._device_serial = coordinator.data.get("blue_device_serial") if coordinator.data else None
             
-        # If we still don't have a device serial, allow placeholder for YAML setup
+        # If we still don't have a device serial, this shouldn't happen with the new setup flow
         if not self._device_serial:
-            _LOGGER.warning(f"Creating VirtualPoolCare sensor '{key}' without device serial - this should only happen briefly during YAML setup")
-            self._device_serial = "pending"
+            raise ValueError(f"Cannot create VirtualPoolCare sensor '{key}' without device serial")
         
         # Use core module to create IDs and names
         self._attr_unique_id = VirtualPoolCareSensorData.create_entity_id(self._device_serial, key)
