@@ -105,7 +105,6 @@ class PoolReadingsBarCard extends LitElement {
         font-size: 0.75em; /* Reduced from 0.8em to 0.75em */
         font-weight: 600;
         white-space: nowrap;
-        z-index: 10;
         box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
         min-width: 40px;
         text-align: center;
