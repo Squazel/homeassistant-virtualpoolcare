@@ -110,52 +110,22 @@ async def async_setup_platform(
         timeout=timeout
     )
     
-    # Don't schedule background refresh during setup to avoid race conditions
-    # Initialize coordinator with empty data first, then fetch device serial synchronously
+    # Don't block setup on first refresh - this causes 10+ second delays
+    # Initialize with empty data and schedule background refresh
     coordinator.async_set_updated_data({})
+    hass.async_create_task(coordinator.async_config_entry_first_refresh())
     
-    # We need to fetch device serial before creating entities
-    device_serial = None
-    _LOGGER.info("VirtualPoolCare: Fetching device serial from API...")
-    try:
-        await coordinator.async_request_refresh()
-        _LOGGER.debug("VirtualPoolCare: API call completed. Coordinator data keys: %s", 
-                     list(coordinator.data.keys()) if coordinator.data else "None")
-        
-        if coordinator.data and coordinator.data.get("blue_device_serial"):
-            device_serial = coordinator.data["blue_device_serial"]
-            _LOGGER.info("VirtualPoolCare: Retrieved device serial from API: %s", device_serial)
-        else:
-            if coordinator.data:
-                _LOGGER.error("VirtualPoolCare: API call succeeded but no 'blue_device_serial' in response. Available keys: %s", 
-                             list(coordinator.data.keys()))
-            else:
-                _LOGGER.error("VirtualPoolCare: API call completed but coordinator.data is None/empty")
-            _LOGGER.error("VirtualPoolCare: Failed to retrieve device serial from API. Cannot create entities.")
-            return
-    except Exception as e:
-        _LOGGER.error("VirtualPoolCare: Error fetching device serial: %s. Cannot create entities.", e)
-        return
+    # Store coordinator for dynamic entity creation
+    hass.data.setdefault(DOMAIN, {})
+    hass.data[DOMAIN]["yaml_coordinator"] = coordinator
     
-    # Create initial entities with device serial - they will populate when data arrives
-    entities = []
-    # Start with common sensor keys that we expect to receive
-    expected_keys = {"temperature", "ph", "orp", "salinity"}  
+    # Don't create any entities during setup - let the coordinator update handle entity creation
+    # This ensures we only create entities when we have real data with device serial
+    _LOGGER.debug("VirtualPoolCare: Platform setup completed. Entities will be created when data arrives.")
     
-    for key in expected_keys:
-        entities.append(VirtualPoolCareSensor(coordinator, key, device_serial))
-    
-    _LOGGER.debug("VirtualPoolCare: Created %d initial entities", len(entities))
-    
-    _LOGGER.debug("VirtualPoolCare: Adding %d entities to Home Assistant", len(entities))
-    async_add_entities(entities, update_before_add=False)
-
-    # Store entities for dynamic addition
-    hass.data.setdefault(f"{DOMAIN}_entities", []).extend(entities)
-
-    # Register a listener to add new entities dynamically if keys change
+    # Register a listener to create entities when data becomes available
     coordinator.async_add_listener(
-        lambda: _add_new_virtualpoolcare_entities(hass, coordinator, async_add_entities, device_serial)
+        lambda: _add_new_virtualpoolcare_entities(hass, coordinator, async_add_entities, None)
     )
 
 
@@ -164,12 +134,11 @@ def _add_new_virtualpoolcare_entities(hass, coordinator, async_add_entities, dev
     if not coordinator.data:
         return  # No data yet, skip
         
-    # Use provided device_serial or get from coordinator data (for backward compatibility)
-    if device_serial is None:
-        device_serial = coordinator.data.get("blue_device_serial")
-        if not device_serial:
-            _LOGGER.warning("VirtualPoolCare: Cannot add new entities without device serial, skipping")
-            return
+    # Get device serial from coordinator data
+    actual_device_serial = coordinator.data.get("blue_device_serial")
+    if not actual_device_serial:
+        _LOGGER.warning("VirtualPoolCare: Cannot add new entities without device serial, skipping")
+        return
     
     # Get existing sensor keys for this device
     existing_keys = set()
@@ -177,7 +146,7 @@ def _add_new_virtualpoolcare_entities(hass, coordinator, async_add_entities, dev
     if entities_key in hass.data:
         existing_keys = {
             ent._key for ent in hass.data[entities_key]
-            if hasattr(ent, '_device_serial') and ent._device_serial == device_serial
+            if hasattr(ent, '_device_serial') and ent._device_serial == actual_device_serial
         }
     
     # Get all sensor keys from current data
@@ -186,7 +155,7 @@ def _add_new_virtualpoolcare_entities(hass, coordinator, async_add_entities, dev
     
     if new_keys:
         _LOGGER.debug("VirtualPoolCare: Adding %d new entities: %s", len(new_keys), new_keys)
-        new_entities = [VirtualPoolCareSensor(coordinator, key, device_serial) for key in new_keys]
+        new_entities = [VirtualPoolCareSensor(coordinator, key, actual_device_serial) for key in new_keys]
         async_add_entities(new_entities, update_before_add=False)
         hass.data.setdefault(entities_key, []).extend(new_entities)
 
